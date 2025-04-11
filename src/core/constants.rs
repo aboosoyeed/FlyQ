@@ -1,0 +1,3 @@
+//const DEFAULT_SEGMENT_BYTES:u64 = 100;
+
+pub const DEFAULT_INDEX_INTERVAL: u32 = 100;
