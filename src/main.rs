@@ -1,4 +1,3 @@
-use std::env;
 use std::path::PathBuf;
 use crate::core::partition::Partition;
 
@@ -6,13 +5,6 @@ mod core;
 
 // cargo run produce ~/personal/data "hello world"
 // cargo run consume  ~/personal/data 0
-
-fn print_usage(args: Vec<String>) {
-    println!("U did : {:?}",&args);
-    eprintln!("Usage:");
-    eprintln!("  queue produce <log_dir> <message>");
-    eprintln!("  queue consume <log_dir> <offset>");
-}
 
 
 fn main() -> std::io::Result<()> {

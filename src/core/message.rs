@@ -174,7 +174,7 @@ mod tests {
         let msg_buf = &serialized[4..4 + msg_len];
 
         let (parsed_offset, parsed_msg) =
-            Message::deserialize(&msg_buf).expect("deserialize failed");
+            Message::deserialize(msg_buf).expect("deserialize failed");
 
         assert_eq!(parsed_offset, offset);
         assert_eq!(parsed_msg.timestamp, original.timestamp);
@@ -197,7 +197,7 @@ mod tests {
         let msg_len = u32::from_be_bytes(serialized[0..4].try_into().unwrap()) as usize;
         let msg_buf = &serialized[4..4 + msg_len];
 
-        let (_, deserialized) = Message::deserialize(&msg_buf).unwrap();
+        let (_, deserialized) = Message::deserialize(msg_buf).unwrap();
         assert_eq!(deserialized.key, None);
         assert_eq!(deserialized.headers, None);
         assert_eq!(deserialized.value, msg.value);

@@ -123,11 +123,11 @@ impl Partition {
         })
     }
     pub fn read_from_offset(&mut self, offset: u64) -> Result<Vec<Message>, DeserializeError> {
-        let messages = self
+        
+        self
             .stream_from_offset(offset)?
             .map(|res| res.map(|(_, msg)| msg)) // discard the offset
-            .collect::<Result<Vec<_>, _>>();
-        messages
+            .collect::<Result<Vec<_>, _>>()
     }
 }
 
@@ -137,7 +137,7 @@ pub struct PartitionIterator<'a> {
     next_offset: u64,
 }
 
-impl<'a> Iterator for PartitionIterator<'a> {
+impl Iterator for PartitionIterator<'_> {
     type Item = Result<(u64, Message), DeserializeError>;
 
     fn next(&mut self) -> Option<Self::Item> {
