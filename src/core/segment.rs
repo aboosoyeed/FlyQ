@@ -2,11 +2,11 @@ use crate::core::constants::DEFAULT_INDEX_INTERVAL;
 use crate::core::message::{DeserializeError, Message};
 use crate::core::storage::Storage;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug)]
 pub struct Segment {
     pub(crate) base_offset: u64,
     pub(crate) file: File,
@@ -67,7 +67,7 @@ impl Segment {
         self.file.flush()?; // or leave it for batch control
 
         self.size += bytes.len() as u64;
-        self.last_offset = offset;
+        self.last_offset = self.last_offset.max(offset); // protects against incorrect overwrites  
         if self.should_index(offset) {
             self.create_index(offset, pos);
         }
@@ -90,15 +90,17 @@ impl Segment {
     }
 
     fn should_index(&mut self, offset:u64) -> bool {
-        if offset == 0 {
+        if offset == self.base_offset {
+            return true; // Always index first message in segment
+        }
+
+        if self.index_counter == 0 {
+            self.index_counter = self.index_interval;
             return true;
         }
-        if self.index_counter > 0 {
-            self.index_counter -= 1;
-            return false;
-        }
-        self.index_counter = self.index_interval;
-        true
+
+        self.index_counter -= 1;
+        false
     }
 
     pub fn stream_from_offset(&self, offset: u64) -> Result<SegmentIterator, DeserializeError> {
@@ -257,6 +259,19 @@ impl Iterator for SegmentIterator {
         }
 
         None
+    }
+}
+
+impl fmt::Debug for Segment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Segment(base_offset={}, last_offset={}, size={}, index_size={})",
+            self.base_offset,
+            self.last_offset,
+            self.size,
+            self.index.len()
+        )
     }
 }
 

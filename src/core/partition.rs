@@ -4,6 +4,7 @@ use crate::core::storage::Storage;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use tracing::debug;
 
 pub struct Partition {
     pub id: u32,
@@ -91,6 +92,7 @@ impl Partition {
         self.next_offset += 1;
         segment.append(offset, &bytes)?;
 
+        debug!(offset, segment = self.active_segment, "Appended message");
         Ok(offset)
     }
 
@@ -98,7 +100,6 @@ impl Partition {
         &mut self,
         offset: u64,
     ) -> Result<PartitionIterator, DeserializeError> {
-        
         println!("{:?}", self.segments);
 
         let start_key = self
@@ -107,7 +108,12 @@ impl Partition {
             .rev()
             .find(|(_, seg)| seg.base_offset <= offset && seg.last_offset >= offset)
             .map(|(&k, _)| k)
-            .ok_or_else(|| DeserializeError::InvalidFormat(format!("Offset {} not found in any segment", offset)))?;
+            .ok_or_else(|| {
+                DeserializeError::InvalidFormat(format!(
+                    "Offset {} not found in any segment",
+                    offset
+                ))
+            })?;
         let segments = self.segments.range(start_key..);
 
         Ok(PartitionIterator {
