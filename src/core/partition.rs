@@ -98,14 +98,16 @@ impl Partition {
         &mut self,
         offset: u64,
     ) -> Result<PartitionIterator, DeserializeError> {
+        
+        println!("{:?}", self.segments);
+
         let start_key = self
             .segments
-            .range(..=offset)
+            .iter()
             .rev()
-            .find(|(_, seg)| seg.last_offset >= offset)
+            .find(|(_, seg)| seg.base_offset <= offset && seg.last_offset >= offset)
             .map(|(&k, _)| k)
-            .ok_or_else(|| DeserializeError::InvalidFormat("Offset not found".into()))?;
-
+            .ok_or_else(|| DeserializeError::InvalidFormat(format!("Offset {} not found in any segment", offset)))?;
         let segments = self.segments.range(start_key..);
 
         Ok(PartitionIterator {
@@ -115,7 +117,11 @@ impl Partition {
         })
     }
     pub fn read_from_offset(&mut self, offset: u64) -> Result<Vec<Message>, DeserializeError> {
-        self.stream_from_offset(offset)?.collect()
+        let messages = self
+            .stream_from_offset(offset)?
+            .map(|res| res.map(|(_, msg)| msg)) // discard the offset
+            .collect::<Result<Vec<_>, _>>();
+        messages
     }
 }
 
@@ -126,14 +132,22 @@ pub struct PartitionIterator<'a> {
 }
 
 impl<'a> Iterator for PartitionIterator<'a> {
-    type Item = Result<Message, DeserializeError>;
+    type Item = Result<(u64, Message), DeserializeError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // If we have an active iterator, try to get next message
             if let Some(iter) = &mut self.current_iter {
-                if let Some(result) = iter.next() {
-                    return Some(result);
+                match iter.next() {
+                    Some(Ok((offset, msg))) => {
+                        self.next_offset = offset + 1;
+                        return Some(Ok((offset, msg)));
+                    }
+                    Some(Err(e)) => return Some(Err(e)),
+                    None => {
+                        // current_iter is exhausted, move to next segment
+                        self.current_iter = None;
+                    }
                 }
             }
 

@@ -32,6 +32,7 @@ impl fmt::Display for DeserializeError {
 
 impl std::error::Error for DeserializeError {}
 
+#[derive(Debug)]
 pub struct Message {
     pub key: Option<Vec<u8>>, // Optional message key (used for partitioning)
     pub value: Vec<u8>,       // Message body

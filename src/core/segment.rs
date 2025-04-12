@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
 pub struct Segment {
     pub(crate) base_offset: u64,
     pub(crate) file: File,
@@ -67,14 +68,13 @@ impl Segment {
 
         self.size += bytes.len() as u64;
         self.last_offset = offset;
-        if self.should_index() {
+        if self.should_index(offset) {
             self.create_index(offset, pos);
         }
         Ok(offset)
     }
 
     fn create_index(&mut self, offset: u64, pos: u64) {
-        println!("🔍 Indexing offset {} at position {}", offset, pos);
         self.index.insert(offset, pos);
         self.write_index_entry(offset, pos);
         self.index_counter = self.index_interval;
@@ -89,7 +89,10 @@ impl Segment {
         self.index_file.flush().expect("index flush failed");
     }
 
-    fn should_index(&mut self) -> bool {
+    fn should_index(&mut self, offset:u64) -> bool {
+        if offset == 0 {
+            return true;
+        }
         if self.index_counter > 0 {
             self.index_counter -= 1;
             return false;
@@ -99,6 +102,7 @@ impl Segment {
     }
 
     pub fn stream_from_offset(&self, offset: u64) -> Result<SegmentIterator, DeserializeError> {
+        
         let closest_pos = if self.index.is_empty() {
             0 // fallback: start of file
         } else {
@@ -109,7 +113,6 @@ impl Segment {
                 .unwrap_or(0) // fallback if no index entry ≤ offset
         };
         
-
         let mut file = self
             .file
             .try_clone()
@@ -157,8 +160,8 @@ impl Segment {
             if let Ok(iter) = segment.stream_from_offset(resume_offset) {
                 for msg in iter {
                     match msg {
-                        Ok(_) => {
-                            segment.last_offset = resume_offset.max(segment.last_offset);
+                        Ok((offset, _msg)) => {
+                            segment.last_offset = segment.last_offset.max(offset);
                             last_offset = segment.last_offset;
                         }
                         Err(e) => {
@@ -216,7 +219,7 @@ pub struct SegmentIterator {
 }
 
 impl Iterator for SegmentIterator {
-    type Item = Result<Message, DeserializeError>;
+    type Item = Result<(u64,Message), DeserializeError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.end_of_file {
@@ -244,7 +247,7 @@ impl Iterator for SegmentIterator {
                     }
 
                     self.offset = offset + 1;
-                    return Some(Ok(msg));
+                    return Some(Ok((offset,msg)));
                 }
                 Err(e) => {
                     self.end_of_file = true;
@@ -305,7 +308,7 @@ mod tests {
 
         // Can we stream from offset 1 even without an index?
         let mut iter = recovered_segment.stream_from_offset(1).unwrap();
-        let first = iter.next().unwrap().unwrap();
+        let (_, first) = iter.next().unwrap().unwrap();
         assert_eq!(first.value, b"val-1");
     }
 
@@ -356,7 +359,7 @@ mod tests {
 
         // Try to stream from offset 0 (even if not all are indexed)
         let stream = recovered_segment.stream_from_offset(0).expect("stream ok");
-        let messages: Vec<_> = stream.map(|r| r.unwrap().value).collect();
+        let messages: Vec<_> = stream.map(|r| r.unwrap().1.value).collect();
 
         let expected = vec![
             b"val-0".to_vec(),
