@@ -1,4 +1,4 @@
-# Kafka Alternative (Name TBD)
+# Kafka Alternative (FlyQ)
 
 A high-performance, distributed messaging system inspired by Apache Kafka, built with Rust.
 
