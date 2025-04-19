@@ -145,4 +145,13 @@ fn test_consume_past_end_returns_none() {
     );
 }
 
+/*
+TODO: add following cases
+1. consume() before any message is produced → Ok(None)
 
+2. consume() at the exact end → Ok(None)
+
+3. consume() on corrupted message → Err(Deserialize)
+
+ 
+*/
