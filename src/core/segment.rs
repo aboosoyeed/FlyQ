@@ -1,11 +1,12 @@
 use crate::core::constants::DEFAULT_INDEX_INTERVAL;
-use crate::core::message::{DeserializeError, Message};
+use crate::core::message::Message;
 use crate::core::storage::Storage;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use crate::core::error::DeserializeError;
 
 pub struct Segment {
     pub(crate) base_offset: u64,

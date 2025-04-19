@@ -1,11 +1,11 @@
-use crate::core::message::{DeserializeError, Message};
+use crate::core::message::Message;
 use crate::core::segment::{Segment, SegmentIterator};
 use crate::core::storage::Storage;
-use crate::core::topic::Topic;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::debug;
+use crate::core::error::DeserializeError;
 
 pub struct Partition {
     pub id: u32,

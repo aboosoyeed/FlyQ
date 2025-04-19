@@ -6,3 +6,4 @@ mod segment;
 mod storage;
 mod topic;
 mod utils;
+mod error;

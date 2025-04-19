@@ -8,7 +8,7 @@ use crate::core::storage::Storage;
 
 pub struct Topic {
     pub(crate) name: String,
-    partitions: HashMap<u32,Partition>,
+    pub partitions: HashMap<u32,Partition>,
     storage: Storage,
     partition_count: u32,
     next_partition:u32, // used for partition tracking in round robin allocation

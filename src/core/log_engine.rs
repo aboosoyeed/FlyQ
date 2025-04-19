@@ -7,7 +7,7 @@ use crate::core::storage::Storage;
 use crate::core::topic::Topic;
 use std::collections::HashMap;
 use std::path::Path;
-use thiserror::Error;
+use crate::core::error::EngineError;
 
 pub struct LogEngine {
     storage: Storage,
@@ -18,11 +18,7 @@ pub struct LogEngine {
     auto_create_topic: bool,
 }
 
-#[derive(Debug, Error)]
-enum EngineError {
-    #[error("Topic doesnt exists")]
-    NoTopic,
-}
+
 impl LogEngine {
     pub fn load<P: AsRef<Path>>(base_dir: P) -> LogEngine {
         let storage = Storage::new(base_dir);
@@ -65,11 +61,21 @@ impl LogEngine {
 
     pub fn consume(
         &mut self,
-        topic: &str,
-        partition: usize,
+        topic_name: &str,
+        partition_id: u32,
         offset: u64,
-    ) -> std::io::Result<Option<Message>> {
-        todo!()
+    ) -> Result<Option<Message>, EngineError> {
+
+        let topic = self.topics.get_mut(topic_name).ok_or_else(||EngineError::NoTopic)?;
+        let partition = topic.partitions.get_mut(&partition_id).ok_or_else(||EngineError::NoPartition)?;
+        let mut stream = partition.stream_from_offset(offset)?;
+
+        // 4. Return first available message (if any)
+        match stream.next() {
+            Some(Ok((_offset, msg))) => Ok(Some(msg)),
+            Some(Err(e)) => Err(e.into()),  // convert custom error to io::Error
+            None => Ok(None),               // Reached end of log
+        }
     }
     pub fn create_topic(&mut self,name: impl Into<String>,partition_count: Option<u32>) -> &Topic{
         let name = name.into();

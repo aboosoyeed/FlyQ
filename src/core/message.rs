@@ -10,29 +10,10 @@
 [ headers: (key_len, key, val_len, val)* ]
 
 */
+use crate::core::error::DeserializeError;
 use crate::core::utils::read_bytes;
-use std::fmt;
 
-#[derive(Debug)]
-pub enum DeserializeError {
-    UnexpectedEOF,
-    InvalidUtf8,
-    InvalidFormat(String),
-}
-
-impl fmt::Display for DeserializeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DeserializeError::UnexpectedEOF => write!(f, "Unexpected end of input"),
-            DeserializeError::InvalidUtf8 => write!(f, "Invalid UTF-8"),
-            DeserializeError::InvalidFormat(msg) => write!(f, "Invalid format: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for DeserializeError {}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     pub key: Option<Vec<u8>>, // Optional message key (used for partitioning)
     pub value: Vec<u8>,       // Message body

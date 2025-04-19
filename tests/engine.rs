@@ -87,3 +87,33 @@ fn produce_creates_topic_and_segment_if_missing() {
     assert!(engine.topics.contains_key(topic_name));
     assert_eq!(offset, 0);
 }
+
+#[test]
+fn test_engine_consume_returns_produced_message() {
+    let base_dir = folder_to_use();
+    let mut engine = LogEngine::load(&base_dir);
+
+
+    let topic = "events";
+    let msg = Message {
+        key: None,
+        value: b"ping".to_vec(),
+        timestamp: 42,
+        headers: None,
+    };
+
+    // Produce the message
+    let (partition_id, offset) = engine.produce(topic, msg.clone()).expect("produce failed");
+
+    // Now consume from the same offset
+    let result = engine.consume(topic, partition_id, offset).expect("consume failed");
+
+    assert!(result.is_some(), "Expected message to be returned");
+    let returned = result.unwrap();
+
+    assert_eq!(returned.value, msg.value);
+    assert_eq!(returned.timestamp, msg.timestamp);
+    assert_eq!(returned.key, msg.key);
+    assert_eq!(returned.headers, msg.headers);
+}
+
