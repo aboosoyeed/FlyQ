@@ -117,3 +117,32 @@ fn test_engine_consume_returns_produced_message() {
     assert_eq!(returned.headers, msg.headers);
 }
 
+#[test]
+fn test_consume_past_end_returns_none() {
+    let base_dir = folder_to_use();
+    let mut engine = LogEngine::load(&base_dir);
+
+    let topic = "orders";
+    let msg = Message {
+        key: None,
+        value: b"hello".to_vec(),
+        timestamp: 100,
+        headers: None,
+    };
+
+    // Produce one message
+    let (partition_id, offset) = engine.produce(topic, msg).expect("produce failed");
+    assert_eq!(offset, 0);
+
+    // Try consuming one past the last offset
+    let result = engine.consume(topic, partition_id, offset + 1)
+        .expect("consume failed at offset beyond end");
+
+    assert!(
+        result.is_none(),
+        "Expected None for offset beyond end, got: {:?}",
+        result
+    );
+}
+
+

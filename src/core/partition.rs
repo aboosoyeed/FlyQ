@@ -123,11 +123,8 @@ impl Partition {
             .rev()
             .find(|(_, seg)| seg.base_offset <= offset && seg.last_offset >= offset)
             .map(|(&k, _)| k)
-            .ok_or_else(|| {
-                DeserializeError::InvalidFormat(format!(
-                    "Offset {} not found in any segment",
-                    offset
-                ))
+            .ok_or({
+                DeserializeError::OffsetNotFound(offset)
             })?;
         let segments = self.segments.range(start_key..);
 

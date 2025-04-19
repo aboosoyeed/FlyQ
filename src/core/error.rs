@@ -11,6 +11,9 @@ pub enum DeserializeError {
 
     #[error("Invalid format: {0}")]
     InvalidFormat(String),
+
+    #[error("Offset {0} not found in any segment")]
+    OffsetNotFound(u64),
 }
 
 #[derive(Debug, Error)]

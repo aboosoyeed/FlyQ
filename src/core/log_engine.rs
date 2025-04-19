@@ -7,7 +7,7 @@ use crate::core::storage::Storage;
 use crate::core::topic::Topic;
 use std::collections::HashMap;
 use std::path::Path;
-use crate::core::error::EngineError;
+use crate::core::error::{DeserializeError, EngineError};
 
 pub struct LogEngine {
     storage: Storage,
@@ -66,15 +66,18 @@ impl LogEngine {
         offset: u64,
     ) -> Result<Option<Message>, EngineError> {
 
-        let topic = self.topics.get_mut(topic_name).ok_or_else(||EngineError::NoTopic)?;
-        let partition = topic.partitions.get_mut(&partition_id).ok_or_else(||EngineError::NoPartition)?;
-        let mut stream = partition.stream_from_offset(offset)?;
+        let topic = self.topics.get_mut(topic_name).ok_or(EngineError::NoTopic)?;
+        let partition = topic.partitions.get_mut(&partition_id).ok_or(EngineError::NoPartition)?;
+        let mut stream = match partition.stream_from_offset(offset) {
+            Ok(s) => s,
+            Err(DeserializeError::OffsetNotFound(_)) => return Ok(None), // 👈 graceful EOF
+            Err(e) => return Err(e.into()),                              // 👈 other deserialization errors
+        };
 
-        // 4. Return first available message (if any)
         match stream.next() {
             Some(Ok((_offset, msg))) => Ok(Some(msg)),
-            Some(Err(e)) => Err(e.into()),  // convert custom error to io::Error
-            None => Ok(None),               // Reached end of log
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
         }
     }
     pub fn create_topic(&mut self,name: impl Into<String>,partition_count: Option<u32>) -> &Topic{
