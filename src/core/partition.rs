@@ -1,6 +1,7 @@
 use crate::core::message::{DeserializeError, Message};
 use crate::core::segment::{Segment, SegmentIterator};
 use crate::core::storage::Storage;
+use crate::core::topic::Topic;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -22,6 +23,21 @@ impl Partition {
         self.active_segment = base_offset;
 
         Ok(())
+    }
+
+    pub fn scan_existing(path: PathBuf, max_segment_bytes: u64) -> Option<Partition> {
+        let partition_segment = path
+            .file_name()
+            .and_then(|f| f.to_str())
+            .and_then(|name| name.strip_prefix("partition_"))
+            .map(|s| s.to_string());
+
+        partition_segment.map(|partition_id| Partition::open(
+                    path,
+                    partition_id.to_string().parse().unwrap(),
+                    max_segment_bytes,
+                )
+                .expect("Could not load partition"))
     }
 
     fn scan_segments(&mut self) -> std::io::Result<()> {
@@ -100,8 +116,7 @@ impl Partition {
         &mut self,
         offset: u64,
     ) -> Result<PartitionIterator, DeserializeError> {
-        println!("{:?}", self.segments);
-
+        
         let start_key = self
             .segments
             .iter()
@@ -123,9 +138,7 @@ impl Partition {
         })
     }
     pub fn read_from_offset(&mut self, offset: u64) -> Result<Vec<Message>, DeserializeError> {
-        
-        self
-            .stream_from_offset(offset)?
+        self.stream_from_offset(offset)?
             .map(|res| res.map(|(_, msg)| msg)) // discard the offset
             .collect::<Result<Vec<_>, _>>()
     }
@@ -177,7 +190,7 @@ mod tests {
 
     /// Test: Basic append + read on single-partition log
     ///
-    /// This test appends a single message to a new partition and immediately reads it back
+    /// This tests appends a single message to a new partition and immediately reads it back
     /// using the same offset. It ensures that the append path stores the message correctly
     /// and that the offset/index-based read retrieves the exact message.
     ///
@@ -208,7 +221,7 @@ mod tests {
 
     /// Test: Segment rotation triggers when max_segment_bytes is exceeded
     ///
-    /// This test writes multiple messages to a partition configured with a very small
+    /// This tests writes multiple messages to a partition configured with a very small
     /// segment size (e.g., 50 bytes). It confirms that when the active segment grows too large,
     /// the partition automatically rotates to a new segment.
     ///

@@ -57,7 +57,7 @@ impl Segment {
             .or_else(|| filename.strip_suffix(".index"))
             .and_then(|s| s.parse::<u64>().ok())
     }
-    
+
     pub fn append(&mut self, offset: u64, bytes: &[u8]) -> std::io::Result<u64> {
         // Seek to end first (optional, but clean)
         self.file.seek(SeekFrom::End(0))?;
@@ -67,7 +67,7 @@ impl Segment {
         self.file.flush()?; // or leave it for batch control
 
         self.size += bytes.len() as u64;
-        self.last_offset = self.last_offset.max(offset); // protects against incorrect overwrites  
+        self.last_offset = self.last_offset.max(offset); // protects against incorrect overwrites
         if self.should_index(offset) {
             self.create_index(offset, pos);
         }
@@ -85,11 +85,13 @@ impl Segment {
         entry[0..8].copy_from_slice(&offset.to_be_bytes());
         entry[8..16].copy_from_slice(&pos.to_be_bytes());
 
-        self.index_file.write_all(&entry).expect("index write failed");
+        self.index_file
+            .write_all(&entry)
+            .expect("index write failed");
         self.index_file.flush().expect("index flush failed");
     }
 
-    fn should_index(&mut self, offset:u64) -> bool {
+    fn should_index(&mut self, offset: u64) -> bool {
         if offset == self.base_offset {
             return true; // Always index first message in segment
         }
@@ -104,7 +106,6 @@ impl Segment {
     }
 
     pub fn stream_from_offset(&self, offset: u64) -> Result<SegmentIterator, DeserializeError> {
-        
         let closest_pos = if self.index.is_empty() {
             0 // fallback: start of file
         } else {
@@ -114,7 +115,7 @@ impl Segment {
                 .map(|(_, &v)| v)
                 .unwrap_or(0) // fallback if no index entry ≤ offset
         };
-        
+
         let mut file = self
             .file
             .try_clone()
@@ -210,8 +211,6 @@ impl Segment {
 
         (index, index_file, last_offset)
     }
-
-    
 }
 
 pub struct SegmentIterator {
@@ -221,7 +220,7 @@ pub struct SegmentIterator {
 }
 
 impl Iterator for SegmentIterator {
-    type Item = Result<(u64,Message), DeserializeError>;
+    type Item = Result<(u64, Message), DeserializeError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.end_of_file {
@@ -249,7 +248,7 @@ impl Iterator for SegmentIterator {
                     }
 
                     self.offset = offset + 1;
-                    return Some(Ok((offset,msg)));
+                    return Some(Ok((offset, msg)));
                 }
                 Err(e) => {
                     self.end_of_file = true;
@@ -277,15 +276,14 @@ impl fmt::Debug for Segment {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-    use std::path::PathBuf;
     use crate::core::message::Message;
     use crate::core::storage::Storage;
-
+    use std::io::Write;
+    use std::path::PathBuf;
 
     /// Test: Segment recovery when index file is missing (e.g., crash scenario)
     ///
-    /// This test simulates a segment that has written some messages but then "crashed"
+    /// This tests simulates a segment that has written some messages but then "crashed"
     /// before persisting the index file. On recovery, the segment should still be
     /// able to stream and read messages correctly from disk, even without any index
     /// entries.
@@ -319,7 +317,9 @@ mod tests {
         std::fs::remove_file(&index_path).unwrap();
 
         // Recover segment
-        let (_, _, recovered_segment) = Segment::recover_from_disk(log_path.clone(), "segment_00000000000000000000.log").unwrap();
+        let (_, _, recovered_segment) =
+            Segment::recover_from_disk(log_path.clone(), "segment_00000000000000000000.log")
+                .unwrap();
 
         // Can we stream from offset 1 even without an index?
         let mut iter = recovered_segment.stream_from_offset(1).unwrap();
@@ -329,7 +329,7 @@ mod tests {
 
     /// Test: Segment with sparse index can recover and read all messages
     ///
-    /// This test writes messages to a segment with a sparse indexing interval (e.g., every 3rd message),
+    /// This tests writes messages to a segment with a sparse indexing interval (e.g., every 3rd message),
     /// then recovers from disk and attempts to read all messages back. It verifies that
     /// even offsets that are not directly indexed are still discoverable and readable,
     /// thanks to scanning from the nearest prior index entry.
@@ -342,9 +342,9 @@ mod tests {
     ///
     #[test]
     fn test_segment_sparse_index_read_all() {
+        use crate::core::message::Message;
         use crate::core::segment::Segment;
         use crate::core::storage::Storage;
-        use crate::core::message::Message;
 
         let dir = tempfile::tempdir().unwrap();
         let log_path = dir.path().join("segment_00000000000000000000.log");
@@ -370,7 +370,8 @@ mod tests {
         segment.index_file.flush().unwrap();
 
         // Recover from disk
-        let (_, _, recovered_segment) = Segment::recover_from_disk(log_path, "segment_00000000000000000000.log").unwrap();
+        let (_, _, recovered_segment) =
+            Segment::recover_from_disk(log_path, "segment_00000000000000000000.log").unwrap();
 
         // Try to stream from offset 0 (even if not all are indexed)
         let stream = recovered_segment.stream_from_offset(0).expect("stream ok");
@@ -386,7 +387,4 @@ mod tests {
 
         assert_eq!(messages, expected);
     }
-
-
 }
-
