@@ -10,8 +10,8 @@
 [ headers: (key_len, key, val_len, val)* ]
 
 */
-use std::fmt;
 use crate::core::utils::read_bytes;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum DeserializeError {
