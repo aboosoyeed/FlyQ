@@ -53,8 +53,14 @@ impl LogEngine {
         Ok(())
     }
 
-    pub fn produce(&mut self, topic: &str, msg: Message) -> std::io::Result<u64> {
-        todo!()
+    pub fn produce(&mut self, topic_name: &str, msg: Message) -> std::io::Result<(u32,u64)> {
+
+        if !self.topics.contains_key(topic_name) {
+            self.ensure_topic(topic_name).expect("topic creation failed");
+        }
+        let topic = self.topics.get_mut(topic_name).expect("topic should exist now");
+        topic.produce(msg)
+
     }
 
     pub fn consume(

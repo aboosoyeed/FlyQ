@@ -28,7 +28,7 @@ fn main() -> std::io::Result<()> {
         headers: None,
     };
 
-    engine.produce("abc", msg)?;
+    engine.produce("abc", msg);
 
     Ok(())
 }
