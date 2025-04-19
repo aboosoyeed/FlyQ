@@ -139,6 +139,10 @@ impl Partition {
             .map(|res| res.map(|(_, msg)| msg)) // discard the offset
             .collect::<Result<Vec<_>, _>>()
     }
+
+    pub fn high_watermark(&self) -> u64 {
+        self.next_offset
+    }
 }
 
 pub struct PartitionIterator<'a> {

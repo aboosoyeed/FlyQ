@@ -102,4 +102,10 @@ impl LogEngine {
             Err(EngineError::NoTopic)
         }
     }
+
+    fn high_watermark(&self, topic: &str, partition_id: u32) -> Result<u64, EngineError> {
+        let topic = self.topics.get(topic).ok_or(EngineError::NoTopic)?;
+        let partition = topic.partitions.get(&partition_id).ok_or(EngineError::NoPartition)?;
+        Ok(partition.high_watermark())
+    }
 }
