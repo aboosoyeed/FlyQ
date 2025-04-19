@@ -65,7 +65,7 @@ impl LogEngine {
         partition_id: u32,
         offset: u64,
     ) -> Result<Option<Message>, EngineError> {
-
+        tracing::debug!(topic = %topic_name, partition_id, offset, "consume request");
         let topic = self.topics.get_mut(topic_name).ok_or(EngineError::NoTopic)?;
         let partition = topic.partitions.get_mut(&partition_id).ok_or(EngineError::NoPartition)?;
         let mut stream = match partition.stream_from_offset(offset) {
