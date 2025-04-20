@@ -22,7 +22,9 @@ pub struct LogEngine {
 
 impl LogEngine {
     pub fn load<P: AsRef<Path>>(base_dir: P) -> LogEngine {
-        let storage = Storage::new(base_dir);
+        let storage = Storage::new(&base_dir);
+        let offset_file = base_dir.as_ref().join("consumer_offsets.json");
+        
         let mut engine = LogEngine {
             storage,
             topics: HashMap::new(),
@@ -31,6 +33,10 @@ impl LogEngine {
             auto_create_topic: DEFAULT_AUTO_CREATE_TOPICS_ENABLE,
             offset_tracker: OffsetTracker::new(),
         };
+        
+        
+        let _ = engine.offset_tracker.load_from_file(&offset_file);
+        
         engine
             .scan_topics()
             .expect("Failed to scan topic directories");
@@ -151,6 +157,10 @@ impl LogEngine {
             return Err(EngineError::NoTopic);
         }
         self.offset_tracker.commit(group, partition, offset);
+        
+        //Todo: batch commits to file 
+        let offset_path = self.storage.base_dir.join("consumer_offsets.json");
+        let _ = self.offset_tracker.save_to_file(&offset_path);
         Ok(())
     }
 }

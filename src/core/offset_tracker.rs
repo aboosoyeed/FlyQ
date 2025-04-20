@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Default)]
 pub struct OffsetTracker {
@@ -23,4 +25,25 @@ impl OffsetTracker {
             .and_then(|m| m.get(&partition))
             .copied()
     }
+
+    pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
+        // Serialize the internal store (HashMap<String, HashMap<u32, u64>>)
+        let json = serde_json::to_string_pretty(&self.store)?;
+
+        // Atomically write to disk (optional: temp file + rename)
+        fs::write(path, json)?;
+
+        Ok(())
+    }
+
+    pub fn load_from_file(&mut self, path: &Path) -> Result<(), std::io::Error> {
+        if path.exists() {
+            let json = fs::read_to_string(path)?;
+            let data: HashMap<String, HashMap<u32, u64>> = serde_json::from_str(&json)?;
+            self.store = data;
+        }
+
+        Ok(())
+    }
+
 }

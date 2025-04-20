@@ -257,7 +257,7 @@ mod tests {
 
         // Read all messages from the first offset
         let messages = partition.read_from_offset(offsets[0]).unwrap();
-        assert_eq!(messages.len(), msg_count.try_into().unwrap());
+        assert_eq!(messages.len() as u64, msg_count);
 
         for (i, msg) in messages.iter().enumerate() {
             assert_eq!(msg.value, format!("value-{}", i).as_bytes());
