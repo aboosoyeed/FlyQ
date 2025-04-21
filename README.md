@@ -1,110 +1,112 @@
-FlyQ
-A high-performance, distributed messaging system inspired by Apache Kafka, written in Rust.
+# FlyQ
+
+*A high-performance, distributed messaging system inspired by Apache Kafka, written in Rust.*  
 Focused on simplicity, observability, and performance.
 
-🚧 Project Status
-FlyQ is under active development. We are currently building Stage 3 (basic networking + runtime optimization). The engine supports multiple partitions, sparse indexing, and consumer group offset tracking with disk persistence.
+---
 
-🗺️ Roadmap
-✅ Stage 1: MVP – Single-Node, Append-Only Log
-1.1 – Message and Partition Structs
+## 🧭 Roadmap
 
-1.2 – Disk-Backed Append-Only Log with Segment Rotation
+### ✅ Stage 1 – MVP: Single-Node, Append-Only Log
 
-1.3 – Sparse In-Memory and File Index
+- ✅ **1.1** Message and Partition structs
+- ✅ **1.2** Disk-backed append-only log with segment rotation
+- ✅ **1.3** Sparse in-memory and file-based index
+- ✅ **1.4** Minimal CLI for `produce` and `consume`
 
-1.4 – CLI for Produce/Consume (basic)
+---
 
-✅ Stage 2: Multi-Partition Support
-2.1 – Topic Abstraction with Multiple Partitions
+### ✅ Stage 2 – Multi-Partition Support
 
-2.2 – Round-Robin and Key-Based Partitioning
+- ✅ **2.1** Topic abstraction with multiple partitions
+- ✅ **2.2** Round-robin and key-based partitioning
+- ✅ **2.3** Consumer group offset tracking (in-memory + JSON persistence)
 
-2.3 – Consumer Group Offset Tracking (with JSON persistence)
+---
 
-🛠️ Stage 3: Networking & Runtime Optimizations
-3.1 – TCP or HTTP Server for Produce/Consume APIs
+### 🛠️ Stage 3 – Networking & Runtime Optimization
 
-3.2 – Rust Client SDK
+- 🔄 **3.1** TCP or HTTP server for produce/consume
+- 🔄 **3.2** Rust client SDK
+- 🔄 **3.3** Simple binary or JSON wire protocol
+- 🔄 **3.4** Offset commit batching  
+  _Includes:_  
+  &nbsp;&nbsp;&nbsp;&nbsp;• Dirty flag on commit  
+  &nbsp;&nbsp;&nbsp;&nbsp;• Manual `flush()` API  
+  &nbsp;&nbsp;&nbsp;&nbsp;• Optional auto-flush interval or shutdown hook
+- 🔄 **3.5** Runtime retention, visibility & access control  
+  _Includes:_  
+  &nbsp;&nbsp;&nbsp;&nbsp;• 3.5.1 Segment retention (time/size-based)  
+  &nbsp;&nbsp;&nbsp;&nbsp;• 3.5.2 Watermark APIs (low/high per partition)  
+  &nbsp;&nbsp;&nbsp;&nbsp;• 3.5.3 Authentication hooks for server APIs  
+  &nbsp;&nbsp;&nbsp;&nbsp;• 3.5.4 Partition metadata & health APIs
 
-3.3 – Simple Wire Protocol (Binary or JSON)
+---
 
-3.4 – Offset Commit Batching
+### 🚦 Stage 4 – Broker Coordination (Multi-Node)
 
-Track dirty state per commit
+- 🔄 **4.1** Metadata management via `openraft`
+- 🔄 **4.2** Partition leadership and replication
 
-Manual flush() API
+---
 
-Optional: auto-flush interval / shutdown hook
+### 🔁 Stage 5 – Delivery Guarantees
 
-3.5 – Runtime Retention, Visibility & Access Control
+- 🔄 **5.1** Producer acknowledgments and retry support
+- 🔄 **5.2** Durable offset storage via internal topic
+- 🔄 **5.3** Idempotent produce with deduplication
 
-3.5.1 – Segment Retention (time/size-based)
+---
 
-3.5.2 – Watermark API (low/high watermark per partition)
+### 🔧 Stage 6 – Dev Experience & Admin
 
-3.5.3 – Authentication Hooks for Server APIs
+- 🔄 **6.1** Prometheus metrics
+- 🔄 **6.2** Web UI for topics, partitions, and offsets
+- 🔄 **6.3** WASM plugin support for transform/filter pipelines
 
-3.5.4 – Partition Health & Metadata API
+---
 
-🚦 Stage 4: Broker Coordination (Multi-Node)
-4.1 – Metadata Management with openraft
+### ⚙️ Stage 7 – Platform Extensions
 
-4.2 – Partition Leadership & Replication Protocol
+- 🔄 **7.1** Namespace & multi-tenant isolation
+- 🔄 **7.2** Pluggable storage backends (RocksDB, Redb, Parquet)
+- 🔄 **7.3** Native gRPC / QUIC APIs
+- 🔄 **7.4** Log time-travel & snapshot reads
+- 🔄 **7.5** Embedded mode for edge/mobile devices
+- 🔄 **7.6** GitOps-style declarative configuration
 
-🔁 Stage 5: Delivery Guarantees
-5.1 – Producer Acknowledgments & Retries
+---
 
-5.2 – Durable Offset Storage via Internal Topic
+### 🧪 Stage 8 – Advanced Delivery Semantics
 
-5.3 – Idempotent Produce API for Deduplication
+- 🔄 **8.1** Exactly-once delivery with producer IDs
+- 🔄 **8.2** Transactional messaging across partitions
 
-🔧 Stage 6: Dev Experience & Admin
-6.1 – Prometheus Metrics for Log, Segment, Partition
+---
 
-6.2 – Web UI for Topics, Offsets, and Message Browser
+## ✅ Current Highlights
 
-6.3 – WASM Plugin System for Inline Filters / Transforms
+- Segment rotation, sparse indexing, and recovery
+- Clean log stream API (`stream_from_offset`)
+- Round-robin and key-aware routing
+- Consumer groups with persisted offset tracking
+- Integration tests for segment replay and offset recovery
+- `DeserializeError` and `EngineError` based error model
 
-⚙️ Stage 7: Platform Extensions
-7.1 – Multi-Tenant Namespace Isolation
+---
 
-7.2 – Pluggable Storage Backends (RocksDB, Redb, Parquet)
+## 📦 Getting Started
 
-7.3 – Native gRPC/QUIC APIs
+*(Coming soon – CLI usage, API docs, setup instructions)*
 
-7.4 – Log Time Travel, Snapshot Reads
+---
 
-7.5 – Embedded Mode for Edge/Mobile Use
+## 🤝 Contributing
 
-7.6 – GitOps-style Declarative Topic/Partition Config
+*(Soon to open. For now, feel free to raise an issue or suggest features.)*
 
-🧪 Stage 8: Advanced Delivery Semantics
-8.1 – Exactly-Once Semantics with Producer IDs
+---
 
-8.2 – Cross-Partition Transactional Messaging
+## ⚖️ License
 
-✅ Current Achievements
-Segment rotation, sparse indexing, and backfilled recovery
-
-stream_from_offset() API over multiple segments
-
-Per-topic partitioned log layout with topic abstraction
-
-Message routing via round-robin or key hashing
-
-Consumer groups with offset tracking and JSON persistence
-
-Integration tests for segment recovery, message replay, and offset commits
-
-Clean error model with DeserializeError and EngineError
-
-📦 Getting Started
-(To be added soon — will include CLI and dev guide)
-
-🤝 Contributing
-(Opening soon. If you’re interested, raise an issue or PR.)
-
-⚖️ License
-To be finalized (likely Apache 2.0 or MIT/Apache dual).
-
+*(To be determined — likely Apache 2.0 or dual MIT/Apache.)*
