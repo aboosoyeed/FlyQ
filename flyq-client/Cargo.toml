@@ -1,0 +1,10 @@
+[package]
+name = "flyq-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.37", features = ["full"] }
+flyq-protocol = { path = "../flyq-protocol" }
+anyhow = "1.0.97"
+bytes = "1.10.1"
