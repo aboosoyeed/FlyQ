@@ -11,6 +11,8 @@ thiserror = "2.0.12"
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 serde_json = "1.0.140"
 anyhow = "1.0.97"
+bytes = "1.10.1"
+flyq-protocol = {path = "../flyq-protocol"}
 
 [dev-dependencies]
 tempfile = "3"

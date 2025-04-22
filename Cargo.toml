@@ -4,3 +4,4 @@ members = [
     "flyq-client",
     "flyq-protocol",
 ]
+resolver = "2"
