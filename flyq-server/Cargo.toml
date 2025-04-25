@@ -13,6 +13,7 @@ serde_json = "1.0.140"
 anyhow = "1.0.97"
 flyq-protocol = {path = "../flyq-protocol"}
 bytes = "1.10.1"
+clap = { version = "4.5.37", features = ["derive", "env"] }
 
 [dev-dependencies]
 tempfile = "3"
