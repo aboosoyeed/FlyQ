@@ -1,12 +1,12 @@
 use crate::core::constants::DEFAULT_INDEX_INTERVAL;
-use crate::core::message::Message;
 use crate::core::storage::Storage;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use crate::core::error::DeserializeError;
+use flyq_protocol::error::DeserializeError;
+use flyq_protocol::message::Message;
 
 pub struct Segment {
     pub(crate) base_offset: u64,
@@ -277,10 +277,10 @@ impl fmt::Debug for Segment {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::message::Message;
     use crate::core::storage::Storage;
     use std::io::Write;
     use std::path::PathBuf;
+    use flyq_protocol::message::Message;
 
     /// Test: Segment recovery when index file is missing (e.g., crash scenario)
     ///
@@ -343,7 +343,6 @@ mod tests {
     ///
     #[test]
     fn test_segment_sparse_index_read_all() {
-        use crate::core::message::Message;
         use crate::core::segment::Segment;
         use crate::core::storage::Storage;
 

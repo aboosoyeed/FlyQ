@@ -7,8 +7,8 @@ use bytes::{Bytes, BytesMut};
 use tokio::sync::Mutex;
 use tracing::{info, debug};
 use flyQ::core::log_engine::LogEngine;
-use flyQ::core::message::Message;
 use flyq_protocol::{Frame, OpCode};
+use flyq_protocol::message::Message;
 use crate::types::SharedLogEngine;
 
 mod types;

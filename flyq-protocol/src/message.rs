@@ -10,8 +10,9 @@
 [ headers: (key_len, key, val_len, val)* ]
 
 */
-use crate::core::error::DeserializeError;
-use crate::core::utils::read_bytes;
+
+use crate::error::DeserializeError;
+use crate::utils::read_bytes;
 
 #[derive(Debug, Clone)]
 pub struct Message {

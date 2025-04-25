@@ -1,5 +1,9 @@
 // flyq-protocol/src/lib.rs
 
+pub mod message;
+mod utils;
+pub mod error;
+
 use thiserror::Error;
 use bytes::{Buf, BufMut, BytesMut};
 

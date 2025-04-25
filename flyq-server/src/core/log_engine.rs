@@ -2,13 +2,14 @@ use crate::core::constants::{
     DEFAULT_AUTO_CREATE_TOPICS_ENABLE, DEFAULT_INDEX_INTERVAL, DEFAULT_MAX_SEGMENT_BYTES,
     DEFAULT_PARTITION_CNT,
 };
-use crate::core::error::{DeserializeError, EngineError};
-use crate::core::message::Message;
 use crate::core::offset_tracker::OffsetTracker;
 use crate::core::storage::Storage;
 use crate::core::topic::Topic;
 use std::collections::HashMap;
 use std::path::Path;
+use flyq_protocol::error::DeserializeError;
+use flyq_protocol::message::Message;
+use crate::core::error::EngineError;
 
 pub struct LogEngine {
     storage: Storage,

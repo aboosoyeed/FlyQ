@@ -1,11 +1,11 @@
-use crate::core::message::Message;
 use crate::core::segment::{Segment, SegmentIterator};
 use crate::core::storage::Storage;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::debug;
-use crate::core::error::DeserializeError;
+use flyq_protocol::error::DeserializeError;
+use flyq_protocol::message::Message;
 
 pub struct Partition {
     pub id: u32,
@@ -186,7 +186,7 @@ impl Iterator for PartitionIterator<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::message::Message;
+    use flyq_protocol::message::Message;
     use crate::core::partition::Partition;
 
     /// Test: Basic append + read on single-partition log

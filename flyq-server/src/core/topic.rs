@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use xxhash_rust::xxh3::xxh3_64;
+use flyq_protocol::message::Message;
 use crate::core::constants::{DEFAULT_MAX_SEGMENT_BYTES};
-use crate::core::message::Message;
 use crate::core::partition::Partition;
 use crate::core::storage::Storage;
 
