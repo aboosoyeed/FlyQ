@@ -41,15 +41,20 @@ async fn handle_connection(mut stream: TcpStream) -> Result<()> {
         };
         
         while let Some(frame) = Frame::decode(&mut buf)?{
-            let response = handle_frame(frame).await?;
-            stream.write_all(&response).await?;
+            let response = handle_frame(&frame).await?;
+            let mut out = BytesMut::new();
+            Frame{
+                op: frame.op,
+                payload: response,
+            }.encode(&mut out);
+            stream.write_all(&out).await?;
             stream.flush().await?;
         }
     }
 
 }
 
-async fn handle_frame(frame: Frame)->Result<Vec<u8>>{
+async fn handle_frame(frame: &Frame)->Result<Vec<u8>>{
     match frame.op {
         OpCode::Produce => {
             let (_, response) = parse_produce(&frame.payload)?;
