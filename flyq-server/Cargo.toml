@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1.44.1", features = ["rt", "rt-multi-thread", "macros", "net", "io-util"] }
+tokio = { version = "1.44.1", features = ["rt", "rt-multi-thread", "macros", "net", "io-util", "sync"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 thiserror = "2.0.12"
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 serde_json = "1.0.140"
 anyhow = "1.0.97"
-bytes = "1.10.1"
 flyq-protocol = {path = "../flyq-protocol"}
+bytes = "1.10.1"
 
 [dev-dependencies]
 tempfile = "3"

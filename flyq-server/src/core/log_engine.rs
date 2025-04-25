@@ -55,7 +55,8 @@ impl LogEngine {
         }
         Ok(())
     }
-
+    
+    // returns (partition_id, offset)
     pub fn produce(&mut self, topic_name: &str, msg: Message) -> std::io::Result<(u32, u64)> {
         if !self.topics.contains_key(topic_name) {
             self.ensure_topic(topic_name)
