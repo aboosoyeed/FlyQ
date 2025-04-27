@@ -1,5 +1,5 @@
 use bytes::{Bytes, Buf};
-use crate::error::ProtocolError;
+use crate::errors::ProtocolError;
 
 #[derive(Debug)]
 pub struct ConsumeRequest {
@@ -19,7 +19,7 @@ impl ConsumeRequest {
         }
         let topic_bytes = buf.split_to(topic_len);
         let topic = String::from_utf8(topic_bytes.to_vec())
-            .map_err(|_| ProtocolError::PayloadError("Invalid UTF-8 in topic"))?;
+            .map_err(|_| ProtocolError::PayloadError("Invalid UTF-8 in topic".into()))?;
         let partition = buf.get_u32();
         let offset = buf.get_u64();
 

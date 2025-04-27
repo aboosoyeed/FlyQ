@@ -1,5 +1,5 @@
 use bytes::{Bytes, BytesMut, Buf, BufMut};
-use crate::error::ProtocolError;
+use crate::errors::ProtocolError;
 
 #[derive(Debug)]
 pub struct ProduceAck {

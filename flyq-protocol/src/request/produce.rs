@@ -1,5 +1,5 @@
 use bytes::{Bytes, BytesMut, Buf, BufMut};
-use crate::error::ProtocolError;
+use crate::errors::ProtocolError;
 
 #[derive(Debug)]
 pub struct ProduceRequest {
@@ -27,7 +27,7 @@ impl ProduceRequest {
         }
         let topic_bytes = buf.split_to(topic_len);
         let topic = String::from_utf8(topic_bytes.to_vec())
-            .map_err(|_| ProtocolError::PayloadError("Invalid UTF-8 in topic"))?;
+            .map_err(|_| ProtocolError::PayloadError("Invalid UTF-8 in topic".into()))?;
         let message_len = buf.get_u32() as usize;
         if buf.remaining() < message_len {
             return Err(ProtocolError::PayloadError("Incomplete message payload".into()));

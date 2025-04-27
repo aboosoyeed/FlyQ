@@ -1,6 +1,6 @@
 use bytes::{Bytes};
 use crate::message::Message;
-use crate::error::ProtocolError;
+use crate::errors::ProtocolError;
 
 #[derive(Debug)]
 pub struct ConsumeResponse {
