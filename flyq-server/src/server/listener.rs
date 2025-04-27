@@ -1,11 +1,11 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 use flyQ::core::log_engine::LogEngine;
-use flyq_protocol::{Frame, OpCode};
+use flyq_protocol::{ConsumeRequest, ConsumeResponse, Frame, FrameType, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload};
 use flyq_protocol::message::Message;
 use crate::types::SharedLogEngine;
 use anyhow::{Result, Context};
@@ -34,24 +34,34 @@ pub async fn start(config:Config) -> Result<()>{
 }
 
 async fn handle_connection(mut stream: TcpStream, engine: SharedLogEngine) -> anyhow::Result<()> {
-    let mut buf = BytesMut::with_capacity(1024);
+    let mut buf = BytesMut::with_capacity(4096);
 
 
     loop {
-        buf.reserve(1024);
-        let _ = match stream.read_buf(&mut buf).await {
-            Ok(0) => return Ok(()),  // EOF
-            Ok(n) => n,
-            Err(e) => return Err(e.into()),
-        };
+
+        let n = stream.read_buf(&mut buf).await.map_err(|e|ProtocolError::IoError(e))?;
+         if n == 0{
+             return Ok(())
+         }
 
         while let Some(frame) = Frame::decode(&mut buf)?{
-            let response = handle_frame(&frame, &engine).await?;
+            if frame.frame_type != FrameType::Request{
+                // Todo: handle non request frames
+                continue;
+            }
+
+            let request_payload = RequestPayload::deserialize(Bytes::from(frame.payload))?;
+            let response_payload = dispatch_request(request_payload, &engine).await?;
+
+            let response_frame = Frame {
+                version: 1,
+                frame_type: FrameType::Response,
+                correlation_id: frame.correlation_id,
+                payload: Vec::from(response_payload.serialize()),
+            };
+
             let mut out = BytesMut::new();
-            Frame{
-                op: frame.op,
-                payload: response,
-            }.encode(&mut out);
+            response_frame.encode(&mut out);
             stream.write_all(&out).await?;
             stream.flush().await?;
         }
@@ -59,55 +69,54 @@ async fn handle_connection(mut stream: TcpStream, engine: SharedLogEngine) -> an
 
 }
 
-async fn handle_frame(frame: &Frame, engine: &SharedLogEngine) -> anyhow::Result<Vec<u8>> {
-    match frame.op {
-        OpCode::Produce => {
-            let (topic, message) = parse_produce(&frame.payload).await?;
-            let (partition_id, offset) = engine.lock().await.produce(&topic, message)?;
-            let mut response = Vec::with_capacity(12);
-            response.extend_from_slice(&partition_id.to_be_bytes());
-            response.extend_from_slice(&offset.to_be_bytes());
-            Ok(response)
-        },
-        OpCode::Consume => {
-            let (topic, offset) = parse_consume(&frame.payload)?;
-            let maybe_msg  = engine.lock().await.consume(&topic, 0, offset)?;
-            if let Some(msg) = maybe_msg {
-                Ok(msg.value) // for now just send back value
-            } else {
-                Ok(Vec::new()) // return empty payload if not found
-            }
-        }
+async fn dispatch_request(request: RequestPayload, engine: &SharedLogEngine) -> Result<ResponsePayload, ProtocolError> {
+    match request.op_code {
+        OpCode::Produce => handle_produce(request.data, engine).await,
+        OpCode::Consume => handle_consume(request.data, engine).await,
     }
 }
 
-async fn parse_produce(buf:&[u8]) -> anyhow::Result<(String, Message)> {
-    let tpos = buf.iter().position(|&x|x==0).ok_or_else(||anyhow::anyhow!("missing topic separator"))?;
-    let topic = std::str::from_utf8(&buf[..tpos])?.to_string();
-    let message = buf[tpos+1..].to_vec();
+async fn handle_produce(data: Bytes, engine: &SharedLogEngine) -> Result<ResponsePayload, ProtocolError> {
+    let produce_req = ProduceRequest::deserialize(data)?;
     let message = Message {
         key: None,
-        value: message,
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_millis() as u64,
+        value: produce_req.message.to_vec(),
+        timestamp: chrono::Utc::now().timestamp_millis() as u64,
         headers: None,
     };
 
-    Ok((topic, message))
+    let (partition, offset) = engine.lock().await.produce(&produce_req.topic, message)?;
+
+    let ack = ProduceAck {
+        partition,
+        offset,
+    };
+
+    Ok(ResponsePayload {
+        op_code: OpCode::Produce,
+        data: ack.serialize(),
+    })
 }
 
-fn parse_consume(buf: &[u8]) -> anyhow::Result<(String, u64)> {
-    let tpos = buf.iter().position(|&b| b == 0)
-        .ok_or_else(|| anyhow::anyhow!("missing topic separator"))?;
-
-    let topic = std::str::from_utf8(&buf[..tpos])?.to_string();
-
-    if buf.len() < tpos + 1 + 8 {
-        anyhow::bail!("payload too short for u64 offset");
+async fn handle_consume(data:Bytes, engine: &SharedLogEngine)->Result<ResponsePayload, ProtocolError>{
+    let consume_req = ConsumeRequest::deserialize(data)?;
+    let maybe_msg  = engine.lock().await.consume(&consume_req.topic, 0, consume_req.offset)?;
+    if let Some(msg) = maybe_msg{
+        let resp = ConsumeResponse{
+            offset: consume_req.offset,
+            message: msg,
+        };
+        Ok(ResponsePayload {
+            op_code: OpCode::Consume,
+            data: resp.serialize(), // (you already have Message::serialize)
+        })
+        
+    }else { 
+        Ok(ResponsePayload{
+            op_code: OpCode::Consume,
+            data:Bytes::new(), // Empty payload means no message found
+        })
     }
-
-    let offset = u64::from_be_bytes(buf[tpos + 1..tpos + 9].try_into()?);
-
-    Ok((topic, offset))
 }
+
+

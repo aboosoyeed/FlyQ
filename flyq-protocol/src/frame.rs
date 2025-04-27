@@ -12,7 +12,7 @@ use xxhash_rust::xxh32::xxh32;
 use crate::{ProtocolError};
 
 #[repr(u8)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum FrameType {
     Request = 1,
     Response = 2,

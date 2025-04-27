@@ -13,4 +13,9 @@ impl ConsumeResponse {
         let (offset, message) = Message::deserialize(&buf)?;
         Ok(ConsumeResponse { offset, message })
     }
+
+    pub fn serialize(&self) -> Bytes {
+        let buf = self.message.serialize(self.offset);  // pass correct offset
+        Bytes::from(buf)
+    }
 }
