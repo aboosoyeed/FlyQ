@@ -4,7 +4,8 @@ pub mod message;
 pub mod errors;
 mod request;
 mod response;
-
+mod op_code;
+mod utils;
 
 
 // Public re-exports for easy access
@@ -16,3 +17,5 @@ pub use errors::ProtocolError;
 // Re-export common requests/responses
 pub use request::{ProduceRequest, ConsumeRequest};
 pub use response::{ProduceAck, ConsumeResponse};
+
+pub use op_code::{OpCode};

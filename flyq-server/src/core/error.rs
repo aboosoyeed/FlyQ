@@ -1,6 +1,6 @@
 use std::io;
 use thiserror::Error;
-use flyq_protocol::error::DeserializeError;
+use flyq_protocol::errors::DeserializeError;
 
 
 #[derive(Debug, Error)]

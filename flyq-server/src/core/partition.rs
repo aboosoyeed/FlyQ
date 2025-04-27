@@ -4,7 +4,7 @@ use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::debug;
-use flyq_protocol::error::DeserializeError;
+use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 
 pub struct Partition {

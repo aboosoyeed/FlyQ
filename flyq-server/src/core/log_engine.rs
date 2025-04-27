@@ -7,7 +7,7 @@ use crate::core::storage::Storage;
 use crate::core::topic::Topic;
 use std::collections::HashMap;
 use std::path::Path;
-use flyq_protocol::error::DeserializeError;
+use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 use crate::core::error::EngineError;
 

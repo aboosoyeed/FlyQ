@@ -1,4 +1,4 @@
-use crate::error::DeserializeError;
+use crate::errors::DeserializeError;
 
 pub fn read_bytes<'a>(buf: &mut &'a [u8], len: usize) -> Result<&'a [u8], DeserializeError> {
     if buf.len() < len {

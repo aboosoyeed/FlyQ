@@ -11,7 +11,7 @@
 
 */
 
-use crate::error::DeserializeError;
+use crate::errors::DeserializeError;
 use crate::utils::read_bytes;
 
 #[derive(Debug, Clone)]

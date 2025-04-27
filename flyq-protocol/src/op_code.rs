@@ -1,6 +1,6 @@
 use crate::ProtocolError;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(u8)]
 pub enum OpCode {
     Produce = 1,

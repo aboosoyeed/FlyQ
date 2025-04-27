@@ -1,3 +1,4 @@
+use std::io::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -16,7 +17,15 @@ pub enum ProtocolError {
 
     #[error("Checksum Mismatch expected: {expected} found: {found} ")]
     ChecksumMismatch { expected: u32, found: u32 },
+    
+    #[error("IoError :{0} ")]
+    IoError(Error),
+
+    #[error("Message deserialize error: {0}")]
+    MessageDeserializeError(#[from] DeserializeError),
 }
+
+
 
 #[derive(Debug, Error)]
 pub enum DeserializeError {

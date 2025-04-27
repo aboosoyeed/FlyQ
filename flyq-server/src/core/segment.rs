@@ -5,7 +5,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use flyq_protocol::error::DeserializeError;
+use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 
 pub struct Segment {
