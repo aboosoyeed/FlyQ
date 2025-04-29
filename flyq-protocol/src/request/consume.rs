@@ -1,4 +1,4 @@
-use bytes::{Bytes, Buf};
+use bytes::{Bytes, Buf, BytesMut, BufMut};
 use crate::errors::ProtocolError;
 
 #[derive(Debug)]
@@ -24,5 +24,17 @@ impl ConsumeRequest {
         let offset = buf.get_u64();
 
         Ok(ConsumeRequest { topic, partition, offset })
+    }
+
+    pub fn serialize(&self) -> Bytes {
+        let mut buf = BytesMut::new();
+
+        buf.put_u32(self.topic.len() as u32);
+        buf.extend_from_slice(self.topic.as_bytes());
+
+        buf.put_u32(self.partition);
+        buf.put_u64(self.offset);
+
+        buf.freeze()
     }
 }

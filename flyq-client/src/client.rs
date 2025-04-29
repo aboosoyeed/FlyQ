@@ -30,16 +30,16 @@ impl FlyqClient {
 
         let mut buf = BytesMut::new();
         frame.encode(&mut buf);
-        self.stream.write_all(&buf).await.map_err(|e| ProtocolError::IoError(e))?;
+        self.stream.write_all(&buf).await.map_err(ProtocolError::IoError)?;
         Ok(())
     }
 
     async fn read_response(&mut self) -> Result<Frame, ProtocolError> {
         let mut buf = BytesMut::with_capacity(4096);
-        self.stream.read_buf(&mut buf).await.map_err(|e| ProtocolError::IoError(e))?;
+        self.stream.read_buf(&mut buf).await.map_err(ProtocolError::IoError)?;
 
         Frame::decode(&mut buf)?
-            .ok_or_else(|| ProtocolError::IncompleteFrame)
+            .ok_or(ProtocolError::IncompleteFrame)
     }
     
     pub async fn produce(&mut self, topic: &str, payload: &[u8]) -> Result<ProduceAck, ProtocolError> {
@@ -82,10 +82,10 @@ impl FlyqClient {
         self.send_request(payload).await?;
 
         let response = self.read_response().await?;
-        let resp_payload = ResponsePayload::deserialize(response.payload)?;
+        let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
 
         if resp_payload.op_code != OpCode::Consume {
-            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code));
+            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
         }
 
         if resp_payload.data.is_empty() {

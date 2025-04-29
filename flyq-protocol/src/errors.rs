@@ -23,6 +23,9 @@ pub enum ProtocolError {
 
     #[error("Message deserialize error: {0}")]
     MessageDeserializeError(#[from] DeserializeError),
+
+    #[error("Mapped engine error: {0}")]
+    EngineErrorMapped(String),
 }
 
 

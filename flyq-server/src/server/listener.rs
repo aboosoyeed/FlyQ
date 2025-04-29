@@ -39,7 +39,7 @@ async fn handle_connection(mut stream: TcpStream, engine: SharedLogEngine) -> an
 
     loop {
 
-        let n = stream.read_buf(&mut buf).await.map_err(|e|ProtocolError::IoError(e))?;
+        let n = stream.read_buf(&mut buf).await.map_err(ProtocolError::IoError)?;
          if n == 0{
              return Ok(())
          }
@@ -85,7 +85,7 @@ async fn handle_produce(data: Bytes, engine: &SharedLogEngine) -> Result<Respons
         headers: None,
     };
 
-    let (partition, offset) = engine.lock().await.produce(&produce_req.topic, message)?;
+    let (partition, offset) = engine.lock().await.produce(&produce_req.topic, message).map_err(ProtocolError::IoError)?;
 
     let ack = ProduceAck {
         partition,
@@ -100,7 +100,7 @@ async fn handle_produce(data: Bytes, engine: &SharedLogEngine) -> Result<Respons
 
 async fn handle_consume(data:Bytes, engine: &SharedLogEngine)->Result<ResponsePayload, ProtocolError>{
     let consume_req = ConsumeRequest::deserialize(data)?;
-    let maybe_msg  = engine.lock().await.consume(&consume_req.topic, 0, consume_req.offset)?;
+    let maybe_msg  = engine.lock().await.consume(&consume_req.topic, 0, consume_req.offset).map_err(|e|ProtocolError::EngineErrorMapped(e.to_string()))?;
     if let Some(msg) = maybe_msg{
         let resp = ConsumeResponse{
             offset: consume_req.offset,

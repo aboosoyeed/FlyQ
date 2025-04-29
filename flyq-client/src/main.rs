@@ -4,8 +4,13 @@ use flyq_client::client::FlyqClient;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut client = FlyqClient::connect("127.0.0.1:9092").await?;
-    client.produce("hello", b"hello world").await?;
-    //let x = client.consume("hello", 0).await?;
-    //println!("{:?}", String::from_utf8(x)?);
+
+    let topic = "test-topic";
+    let payload = b"Hello from FlyQ!".to_vec();
+
+    let ack = client.produce(topic, &payload).await?;
+
+    println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
+
     Ok(())
 }
