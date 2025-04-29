@@ -54,7 +54,7 @@ impl Frame {
     }
 
     pub fn decode(buf: &mut BytesMut) -> Result<Option<Frame>, ProtocolError> {
-        if buf.len() < 10 {
+        if buf.len() < 14 {
             return Ok(None); // Not enough for frame header
         }
 
@@ -72,7 +72,7 @@ impl Frame {
 
         // At this point, full frame is available
         //let total_len = 10 + payload_len;
-        buf.advance(10); // consume header
+        buf.advance(14); // consume header
         let payload = buf.split_to(payload_len).to_vec();
         let checksum_actual = xxh32(&payload,0);
 

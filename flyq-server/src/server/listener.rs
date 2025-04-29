@@ -84,7 +84,8 @@ async fn handle_produce(data: Bytes, engine: &SharedLogEngine) -> Result<Respons
         timestamp: chrono::Utc::now().timestamp_millis() as u64,
         headers: None,
     };
-
+    
+    //println!("{}", message.clone().serialize().len());
     let (partition, offset) = engine.lock().await.produce(&produce_req.topic, message).map_err(ProtocolError::IoError)?;
 
     let ack = ProduceAck {
