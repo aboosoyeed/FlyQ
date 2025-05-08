@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 
 use flyQ::core::log_engine::LogEngine;
-use flyQ::core::message::Message;
+use flyq_protocol::Message;
 use crate::common::folder_to_use;
 
 #[test]
