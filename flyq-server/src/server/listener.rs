@@ -109,7 +109,7 @@ async fn handle_consume(data:Bytes, engine: &SharedLogEngine)->Result<ResponsePa
         };
         Ok(ResponsePayload {
             op_code: OpCode::Consume,
-            data: resp.serialize(), // (you already have Message::serialize)
+            data: resp.serialize(), 
         })
         
     }else { 

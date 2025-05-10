@@ -309,7 +309,7 @@ mod tests {
                 headers: None,
             };
             let offset = i;
-            let bytes = msg.serialize(offset);
+            let bytes = msg.serialize_for_disk(offset);
             segment.append(offset, &bytes).unwrap();
         }
 
@@ -362,7 +362,7 @@ mod tests {
                 timestamp: 1000 + i,
                 headers: None,
             };
-            let bytes = msg.serialize(i);
+            let bytes = msg.serialize_for_disk(i);
             segment.append(i, &bytes).unwrap();
         }
 

@@ -15,8 +15,6 @@ impl ConsumeResponse {
     }
 
     pub fn serialize(&self) -> Bytes {
-        let raw = self.message.serialize(self.offset);
-        let len = u32::from_be_bytes(raw[0..4].try_into().unwrap()) as usize;
-        Bytes::copy_from_slice(&raw[4..4 + len]) // ✅ Skip msg_len prefix
+        self.message.serialize_for_wire(self.offset)
     }
 }

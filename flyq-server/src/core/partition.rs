@@ -85,7 +85,7 @@ impl Partition {
 
     pub fn append(&mut self, msg: &Message) -> std::io::Result<u64> {
         let offset = self.next_offset;
-        let bytes = msg.serialize(offset);
+        let bytes = msg.serialize_for_disk(offset);
 
         // Get active segment (may be replaced if rotated)
         let mut rotate = false;

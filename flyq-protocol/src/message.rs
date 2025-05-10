@@ -10,7 +10,7 @@
 [ headers: (key_len, key, val_len, val)* ]
 
 */
-
+use bytes::Bytes;
 use crate::errors::DeserializeError;
 use crate::utils::read_bytes;
 
@@ -23,7 +23,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn serialize(&self, offset: u64) -> Vec<u8> {
+    pub fn serialize_for_disk(&self, offset: u64) -> Vec<u8> {
         let mut buf = Vec::new();
 
         // Reserve space to write length later
@@ -63,6 +63,13 @@ impl Message {
         buf[0..4].copy_from_slice(&msg_len.to_be_bytes());
 
         buf
+    }
+
+    /// Used for sending over the network — does not include `[len]`.
+    pub fn serialize_for_wire(&self, offset: u64) -> Bytes {
+        let raw = self.serialize_for_disk(offset);
+        let len = u32::from_be_bytes(raw[0..4].try_into().unwrap()) as usize;
+        Bytes::copy_from_slice(&raw[4..4 + len])
     }
 
     pub fn deserialize(mut buf: &[u8]) -> Result<(u64, Message), DeserializeError> {
@@ -149,7 +156,7 @@ mod tests {
         };
 
         let offset = 12345;
-        let serialized = original.serialize(offset);
+        let serialized = original.serialize_for_disk(offset);
 
         // Extract message length and slice buffer
         let msg_len = u32::from_be_bytes(serialized[0..4].try_into().unwrap()) as usize;
@@ -174,7 +181,7 @@ mod tests {
             headers: None,
         };
 
-        let serialized = msg.serialize(1);
+        let serialized = msg.serialize_for_disk(1);
         // Extract message length and slice buffer
         let msg_len = u32::from_be_bytes(serialized[0..4].try_into().unwrap()) as usize;
         let msg_buf = &serialized[4..4 + msg_len];
