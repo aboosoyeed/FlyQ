@@ -19,15 +19,20 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - [x] TCP server for produce/consume
 - [x] Rust client SDK
 - [x] Simple binary wire protocol with framing, version, checksums
+
 - [ ] Offset commit batching:
-  - Dirty flag on commit
+  - Track dirty flag per consumer group
   - Manual `flush()` API
   - Optional auto-flush interval
-- [ ] Runtime retention and access control:
-  - Segment retention (time/size-based)
-  - Watermark APIs
-  - Authentication hooks
-  - Partition health APIs
+
+- [ ] Retention and runtime visibility:
+  - Segment cleanup (time-/size-based retention)
+  - Partition watermark APIs (low, high, LEO)
+  - Partition health APIs (segment count, lag)
+
+- [ ] Access control hooks:
+  - Authentication scaffolding
+  - Pluggable request validation
 
 ### Stage 4 – Indexing Rework: MVP Fixes
 - [ ] Replace in-memory `BTreeMap` with compact on-disk format
