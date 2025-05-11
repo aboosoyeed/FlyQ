@@ -5,7 +5,7 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 ## Roadmap
 
 ### Stage 1 – MVP: Single-Node, Append-Only Log (Completed)
-- [x] Message and Partition structs
+- [x] Message and Partition structs  
 - [x] Disk-backed append-only log with segment rotation  
 - [x] Sparse in-memory and file-based index  
 - [x] Minimal CLI for `produce` and `consume`
@@ -13,12 +13,12 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 ### Stage 2 – Multi-Partition Support (Completed)
 - [x] Topic abstraction with multiple partitions  
 - [x] Round-robin and key-based partitioning  
-- [x] Consumer group offset tracking (in-memory + JSON persistence)  
+- [x] Consumer group offset tracking (in-memory + JSON persistence)
 
 ### Stage 3 – Networking & Runtime Optimization (In Progress)
-- [ ] TCP or HTTP server for produce/consume  
-- [ ] Rust client SDK  
-- [ ] Simple binary or JSON wire protocol  
+- [x] TCP server for produce/consume  
+- [x] Rust client SDK  
+- [x] Simple binary wire protocol with framing, version, checksums  
 - [ ] Offset commit batching:  
   - Dirty flag on commit  
   - Manual `flush()` API  
@@ -29,21 +29,30 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
   - Authentication hooks  
   - Partition health APIs  
 
-### Stage 4 – Broker Coordination (Multi-Node)
+### Stage 4 – Production-Ready Indexing
+- [ ] Compact and memory-mapped index format  
+- [ ] Index file compaction and checkpointing  
+- [ ] Read path fallback optimization  
+- [ ] Forward and reverse scan support  
+- [ ] Pluggable index strategy per partition  
+
+### Stage 5 – Broker Coordination (Multi-Node)
 - [ ] Metadata management via `openraft`  
 - [ ] Partition leadership and replication  
 
-### Stage 5 – Delivery Guarantees
+### Stage 6 – Delivery Guarantees
 - [ ] Producer acknowledgments and retries  
 - [ ] Durable offset storage  
 - [ ] Idempotent produce with deduplication  
 
 ## Current Features
 - Segment rotation with sparse indexing  
-- `stream_from_offset` API  
-- Key-aware message routing  
-- Consumer groups with persisted offsets  
-- Comprehensive error model (`EngineError`, `DeserializeError`)  
+- `stream_from_offset` API for direct reads  
+- Message routing with round-robin and key-awareness  
+- Consumer groups with offset tracking  
+- `StoredRecord` log format: `[len][offset][message]`  
+- Clean serialization model (`serialize_body`, `serialize_with_len`)  
+- Comprehensive error handling (`EngineError`, `DeserializeError`, `ProtocolError`)  
 
 ## Getting Started
 Documentation will be available soon.
