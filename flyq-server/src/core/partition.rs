@@ -2,10 +2,12 @@ use crate::core::segment::{Segment, SegmentIterator};
 use crate::core::storage::Storage;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::path::PathBuf;
 use tracing::debug;
 use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
+use crate::core::stored_record::StoredRecord;
 
 pub struct Partition {
     pub id: u32,
@@ -85,8 +87,10 @@ impl Partition {
 
     pub fn append(&mut self, msg: &Message) -> std::io::Result<u64> {
         let offset = self.next_offset;
-        let bytes = msg.serialize_for_disk(offset);
-
+        //let bytes = msg.serialize_for_disk(offset);
+        let record = StoredRecord { offset, message: msg.clone() };
+        let bytes = record.serialize();
+        
         // Get active segment (may be replaced if rotated)
         let mut rotate = false;
         if let Some(segment) = self.segments.get(&self.active_segment) {

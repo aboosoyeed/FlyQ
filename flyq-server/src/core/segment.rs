@@ -7,6 +7,7 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
+use crate::core::stored_record::StoredRecord;
 
 pub struct Segment {
     pub(crate) base_offset: u64,
@@ -228,10 +229,9 @@ impl Iterator for SegmentIterator {
             let mut len_buf = [0u8; 4];
             if let Err(e) = self.reader.read_exact(&mut len_buf) {
                 self.end_of_file = true;
-                return if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                    None
-                } else {
-                    Some(Err(DeserializeError::InvalidFormat(e.to_string())))
+                return match e.kind() {
+                    std::io::ErrorKind::UnexpectedEof => None,
+                    _ => Some(Err(DeserializeError::InvalidFormat(e.to_string()))),
                 };
             }
 
@@ -241,21 +241,21 @@ impl Iterator for SegmentIterator {
                 self.end_of_file = true;
                 return Some(Err(DeserializeError::InvalidFormat(e.to_string())));
             }
-
-            match Message::deserialize(&msg_buf) {
-                Ok((offset, msg)) => {
-                    if offset < self.offset {
+            return match StoredRecord::deserialize(&msg_buf) {
+                Ok(record) => {
+                    if record.offset < self.offset {
                         continue; // skip stale message
                     }
 
-                    self.offset = offset + 1;
-                    return Some(Ok((offset, msg)));
+                    self.offset = record.offset + 1;
+                    Some(Ok((record.offset, record.message)))
                 }
                 Err(e) => {
                     self.end_of_file = true;
-                    return Some(Err(e));
+                    Some(Err(e))
                 }
             }
+
         }
 
         None
@@ -281,6 +281,7 @@ mod tests {
     use std::io::Write;
     use std::path::PathBuf;
     use flyq_protocol::message::Message;
+    use crate::core::stored_record::StoredRecord;
 
     /// Test: Segment recovery when index file is missing (e.g., crash scenario)
     ///
@@ -308,9 +309,9 @@ mod tests {
                 timestamp: 1000 + i,
                 headers: None,
             };
-            let offset = i;
-            let bytes = msg.serialize_for_disk(offset);
-            segment.append(offset, &bytes).unwrap();
+            let record = StoredRecord { offset: i, message: msg };
+            let bytes = record.serialize();
+            segment.append(i, &bytes).unwrap();
         }
 
         // Simulate crash — delete the index file
@@ -348,7 +349,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let log_path = dir.path().join("segment_00000000000000000000.log");
-        let storage = Storage::new(dir.path().to_path_buf());
+        let storage = Storage::new(dir.path());
 
         // Create a segment with sparse index (index every 3 messages)
         let mut segment = Segment::new(0, &storage);
@@ -362,7 +363,8 @@ mod tests {
                 timestamp: 1000 + i,
                 headers: None,
             };
-            let bytes = msg.serialize_for_disk(i);
+            let record = StoredRecord { offset: i, message: msg };
+            let bytes = record.serialize();
             segment.append(i, &bytes).unwrap();
         }
 

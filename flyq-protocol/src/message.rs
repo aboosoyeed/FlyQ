@@ -1,6 +1,5 @@
 /*
 [ message_length : u32 ]
-[ offset         : u64 ]
 [ timestamp      : u64 ]
 [ key_len        : u32 ]
 [ key bytes      : [u8] ]
@@ -23,13 +22,12 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn serialize_for_disk(&self, offset: u64) -> Vec<u8> {
+    pub fn serialize_body(&self) -> Vec<u8> {
         let mut buf = Vec::new();
 
         // Reserve space to write length later
         buf.extend_from_slice(&[0u8; 4]); // placeholder
 
-        buf.extend(offset.to_be_bytes());
         buf.extend(&self.timestamp.to_be_bytes());
 
         // Key
@@ -66,18 +64,14 @@ impl Message {
     }
 
     /// Used for sending over the network — does not include `[len]`.
-    pub fn serialize_for_wire(&self, offset: u64) -> Bytes {
-        let raw = self.serialize_for_disk(offset);
+    pub fn serialize_for_wire(&self) -> Bytes {
+        let raw = self.serialize_body();
         let len = u32::from_be_bytes(raw[0..4].try_into().unwrap()) as usize;
         Bytes::copy_from_slice(&raw[4..4 + len])
     }
 
-    pub fn deserialize(mut buf: &[u8]) -> Result<(u64, Message), DeserializeError> {
-        // Offset
-        let offset = {
-            let b = read_bytes(&mut buf, 8)?;
-            u64::from_be_bytes(b.try_into().unwrap())
-        };
+    pub fn deserialize_body(mut buf: &[u8]) -> Result<Message, DeserializeError> {
+
 
         // Timestamp
         let timestamp = {
@@ -123,19 +117,16 @@ impl Message {
             headers.push((k, v));
         }
 
-        Ok((
-            offset,
-            Message {
-                key,
-                value,
-                timestamp,
-                headers: if headers.is_empty() {
-                    None
-                } else {
-                    Some(headers)
-                },
+        Ok(Message {
+            key,
+            value,
+            timestamp,
+            headers: if headers.is_empty() {
+                None
+            } else {
+                Some(headers)
             },
-        ))
+        })
     }
 }
 
@@ -155,17 +146,15 @@ mod tests {
             ]),
         };
 
-        let offset = 12345;
-        let serialized = original.serialize_for_disk(offset);
+        let serialized = original.serialize_body();
 
         // Extract message length and slice buffer
         let msg_len = u32::from_be_bytes(serialized[0..4].try_into().unwrap()) as usize;
         let msg_buf = &serialized[4..4 + msg_len];
 
-        let (parsed_offset, parsed_msg) =
-            Message::deserialize(msg_buf).expect("deserialize failed");
+        let parsed_msg =
+            Message::deserialize_body(msg_buf).expect("deserialize failed");
 
-        assert_eq!(parsed_offset, offset);
         assert_eq!(parsed_msg.timestamp, original.timestamp);
         assert_eq!(parsed_msg.key, original.key);
         assert_eq!(parsed_msg.value, original.value);
@@ -181,12 +170,12 @@ mod tests {
             headers: None,
         };
 
-        let serialized = msg.serialize_for_disk(1);
+        let serialized = msg.serialize_body();
         // Extract message length and slice buffer
         let msg_len = u32::from_be_bytes(serialized[0..4].try_into().unwrap()) as usize;
         let msg_buf = &serialized[4..4 + msg_len];
 
-        let (_, deserialized) = Message::deserialize(msg_buf).unwrap();
+        let deserialized = Message::deserialize_body(msg_buf).unwrap();
         assert_eq!(deserialized.key, None);
         assert_eq!(deserialized.headers, None);
         assert_eq!(deserialized.value, msg.value);

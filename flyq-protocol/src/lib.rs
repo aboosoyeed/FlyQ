@@ -19,3 +19,5 @@ pub use request::{ProduceRequest, ConsumeRequest};
 pub use response::{ProduceAck, ConsumeResponse};
 
 pub use op_code::{OpCode};
+
+pub use utils::read_bytes;

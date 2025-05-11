@@ -1,4 +1,4 @@
-use anyhow::{Result};
+use anyhow::Result;
 use flyq_client::client::FlyqClient;
 
 #[tokio::main]

@@ -6,3 +6,4 @@ mod storage;
 mod topic;
 mod error;
 mod offset_tracker;
+mod stored_record;
