@@ -25,11 +25,7 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - [x] TCP server for produce/consume
 - [x] Rust client SDK
 - [x] Simple binary wire protocol with framing, version, checksums
-
-- [ ] Offset commit batching:
-  - Track in-memory dirty state per consumer group
-  - Manual `flush()` API
-  - Optional auto-flush interval via background task
+- [x] Offset commit batching:
 
 - [ ] Runtime visibility:
   - Watermark APIs (low, high, log end offset)
@@ -64,6 +60,10 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - [ ] Producer acknowledgments and retries
 - [ ] Durable offset storage
 - [ ] Idempotent produce with deduplication
+- [ ] Replace JSON offset file with internal `__consumer_offsets` topic
+  - Append offset commits as records to a log
+  - Use standard segment and index engine for durability
+  - Enable log compaction for latest-offset retention
 
 ### Stage 8 – Observability & Tooling (Planned)
 - [ ] Prometheus metrics and exporter integration

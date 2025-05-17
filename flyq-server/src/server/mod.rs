@@ -1,12 +1,13 @@
 use crate::server::config::Config;
 
-mod config;
+pub(crate) mod config;
 mod listener;
 
 use clap::Parser;
 use tracing::info;
+use crate::types::SharedLogEngine;
 
-pub async fn start() -> anyhow::Result<()>{
+pub async fn start(config:Config, engine:SharedLogEngine) -> anyhow::Result<()>{
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_target(false)
@@ -14,7 +15,6 @@ pub async fn start() -> anyhow::Result<()>{
         .compact()
         .init();
 
-    let config = Config::parse();
     info!("FlyQ starting with config: {:?}", config);
-    listener::start(config).await
+    listener::start(config, engine).await
 }

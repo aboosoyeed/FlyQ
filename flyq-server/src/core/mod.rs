@@ -1,9 +1,9 @@
 mod constants;
+mod error;
 pub mod log_engine;
+pub mod offset_tracker;
 mod partition;
 mod segment;
 mod storage;
-mod topic;
-mod error;
-mod offset_tracker;
 mod stored_record;
+mod topic;

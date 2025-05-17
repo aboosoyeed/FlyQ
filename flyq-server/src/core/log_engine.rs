@@ -2,14 +2,14 @@ use crate::core::constants::{
     DEFAULT_AUTO_CREATE_TOPICS_ENABLE, DEFAULT_INDEX_INTERVAL, DEFAULT_MAX_SEGMENT_BYTES,
     DEFAULT_PARTITION_CNT,
 };
+use crate::core::error::EngineError;
 use crate::core::offset_tracker::OffsetTracker;
 use crate::core::storage::Storage;
 use crate::core::topic::Topic;
-use std::collections::HashMap;
-use std::path::Path;
 use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
-use crate::core::error::EngineError;
+use std::collections::HashMap;
+use std::path::Path;
 
 pub struct LogEngine {
     storage: Storage,
@@ -25,19 +25,18 @@ impl LogEngine {
     pub fn load<P: AsRef<Path>>(base_dir: P) -> LogEngine {
         let storage = Storage::new(&base_dir);
         let offset_file = base_dir.as_ref().join("consumer_offsets.json");
-        
+
         let mut engine = LogEngine {
             storage,
             topics: HashMap::new(),
             max_segment_bytes: DEFAULT_MAX_SEGMENT_BYTES,
             index_interval: DEFAULT_INDEX_INTERVAL,
             auto_create_topic: DEFAULT_AUTO_CREATE_TOPICS_ENABLE,
-            offset_tracker: OffsetTracker::new(),
+            offset_tracker: OffsetTracker::new(offset_file),
         };
-        
-        
-        let _ = engine.offset_tracker.load_from_file(&offset_file);
-        
+
+        let _ = engine.offset_tracker.load_from_file();
+
         engine
             .scan_topics()
             .expect("Failed to scan topic directories");
@@ -56,7 +55,7 @@ impl LogEngine {
         }
         Ok(())
     }
-    
+
     // returns (partition_id, offset)
     pub fn produce(&mut self, topic_name: &str, msg: Message) -> std::io::Result<(u32, u64)> {
         if !self.topics.contains_key(topic_name) {
@@ -139,10 +138,7 @@ impl LogEngine {
         partition: u32,
         group: &str,
     ) -> Result<Option<(u64, Message)>, EngineError> {
-        let offset = self
-            .offset_tracker
-            .fetch(group, partition)
-            .unwrap_or(0); // default to beginning
+        let offset = self.offset_tracker.fetch(group, partition).unwrap_or(0); // default to beginning
 
         let message = self.consume(topic, partition, offset)?;
         Ok(message.map(|msg| (offset, msg)))
@@ -159,10 +155,10 @@ impl LogEngine {
             return Err(EngineError::NoTopic);
         }
         self.offset_tracker.commit(group, partition, offset);
-        
-        //Todo: batch commits to file 
-        let offset_path = self.storage.base_dir.join("consumer_offsets.json");
-        let _ = self.offset_tracker.save_to_file(&offset_path);
+
+        //Todo: batch commits to file
+        //let offset_path = self.storage.base_dir.join("consumer_offsets.json");
+        //let _ = self.offset_tracker.save_to_file(&offset_path);
         Ok(())
     }
 }
