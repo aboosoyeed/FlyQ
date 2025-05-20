@@ -156,9 +156,6 @@ impl LogEngine {
         }
         self.offset_tracker.commit(group, partition, offset);
 
-        //Todo: batch commits to file
-        //let offset_path = self.storage.base_dir.join("consumer_offsets.json");
-        //let _ = self.offset_tracker.save_to_file(&offset_path);
         Ok(())
     }
 }
