@@ -5,6 +5,7 @@ use crate::ProtocolError;
 pub enum OpCode {
     Produce = 1,
     Consume = 2,
+    ConsumeWithGroup = 3
 }
 
 impl TryFrom<u8> for OpCode {
@@ -14,6 +15,7 @@ impl TryFrom<u8> for OpCode {
         match value {
             1 => Ok(OpCode::Produce),
             2 => Ok(OpCode::Consume),
+            3 => Ok(OpCode::ConsumeWithGroup),
             _ => Err(ProtocolError::UnknownOpCode(value)),
         }
     }

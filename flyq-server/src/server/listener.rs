@@ -3,10 +3,7 @@ use crate::types::SharedLogEngine;
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
 use flyq_protocol::message::Message;
-use flyq_protocol::{
-    ConsumeRequest, ConsumeResponse, Frame, FrameType, OpCode, ProduceAck, ProduceRequest,
-    ProtocolError, RequestPayload, ResponsePayload,
-};
+use flyq_protocol::{ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame, FrameType, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload};
 use std::time::{UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -74,6 +71,7 @@ async fn dispatch_request(
     match request.op_code {
         OpCode::Produce => handle_produce(request.data, engine).await,
         OpCode::Consume => handle_consume(request.data, engine).await,
+        OpCode::ConsumeWithGroup => handle_consume_with_group(request.data, engine).await,
     }
 }
 
@@ -126,6 +124,41 @@ async fn handle_consume(
     } else {
         Ok(ResponsePayload {
             op_code: OpCode::Consume,
+            data: Bytes::new(), // Empty payload means no message found
+        })
+    }
+}
+
+async fn handle_consume_with_group(
+    data: Bytes,
+    engine: &SharedLogEngine,
+) -> Result<ResponsePayload, ProtocolError> {
+    let consume_req = ConsumeWithGroupRequest::deserialize(data)?;
+    let maybe_msg = engine
+        .lock()
+        .await
+        .consume_with_group(&consume_req.topic, consume_req.partition, &consume_req.group)
+        .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
+
+    debug!("consume_with_group for topic={}, partition={}, group={} => {:?}", 
+        consume_req.topic, 
+        consume_req.partition, 
+        consume_req.group, 
+        maybe_msg.as_ref().map(|(o, _)| o)
+    );
+    
+    if let Some((offset, msg)) = maybe_msg {
+        let resp = ConsumeResponse {
+            offset,
+            message: msg,
+        };
+        Ok(ResponsePayload {
+            op_code: OpCode::ConsumeWithGroup,
+            data: resp.serialize(),
+        })
+    } else {
+        Ok(ResponsePayload {
+            op_code: OpCode::ConsumeWithGroup,
             data: Bytes::new(), // Empty payload means no message found
         })
     }

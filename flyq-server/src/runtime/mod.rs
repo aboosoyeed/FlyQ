@@ -22,6 +22,6 @@ pub async fn run(engine:SharedLogEngine ,shutdown_rx:Receiver<()>){
     tokio::spawn(flush::run_periodic_offset_flush(
         store,
         shutdown_rx.clone(),
-        Duration::from_secs(5),
+        Duration::from_secs(5), // Todo: determine the optimal duration. should it come from config?
     ));
 }

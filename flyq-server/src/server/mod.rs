@@ -3,7 +3,6 @@ use crate::server::config::Config;
 pub(crate) mod config;
 mod listener;
 
-use clap::Parser;
 use tracing::info;
 use crate::types::SharedLogEngine;
 

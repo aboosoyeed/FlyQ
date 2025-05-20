@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     //println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
     
     let offset =0;
-    match client.consume(topic, offset).await? {
+    match client.consume_with_group(topic, 0, "test_group").await? {
         Some(msg) => {
             println!("Consumed message at offset {}", msg.offset);
 

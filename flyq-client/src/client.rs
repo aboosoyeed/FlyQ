@@ -2,7 +2,7 @@ use anyhow::Context;
 use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use flyq_protocol::{ConsumeRequest, ConsumeResponse, Frame, FrameType, Message, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload};
+use flyq_protocol::{ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame, FrameType, Message, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload};
 
 pub struct FlyqClient {
     stream: TcpStream,
@@ -85,6 +85,35 @@ impl FlyqClient {
         let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
 
         if resp_payload.op_code != OpCode::Consume {
+            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
+        }
+
+        if resp_payload.data.is_empty() {
+            return Ok(None);
+        }
+
+        let consume = ConsumeResponse::deserialize(resp_payload.data)?;
+        Ok(Some(consume))
+    }
+
+    pub async fn consume_with_group(&mut self, topic: &str, partition: u32, group: &str) -> Result<Option<ConsumeResponse>, ProtocolError>{
+        let req = ConsumeWithGroupRequest{
+            topic: topic.to_string(),
+            partition,
+            group: group.to_string(),
+        };
+        
+        let payload = RequestPayload{
+            op_code: OpCode::ConsumeWithGroup,
+            data: req.serialize(),
+        };
+
+        self.send_request(payload).await?;
+        let response = self.read_response().await?;
+        
+        let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
+
+        if resp_payload.op_code != OpCode::ConsumeWithGroup {
             return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
         }
 
