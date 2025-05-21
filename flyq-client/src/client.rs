@@ -1,8 +1,12 @@
 use anyhow::Context;
 use bytes::{Bytes, BytesMut};
+use flyq_protocol::{
+    CommitOffsetRequest, ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame,
+    FrameType, Message, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload,
+    ResponsePayload,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use flyq_protocol::{ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame, FrameType, Message, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload};
 
 pub struct FlyqClient {
     stream: TcpStream,
@@ -15,7 +19,10 @@ impl FlyqClient {
             .await
             .context("Failed to connect to FlyQ server")?;
 
-        Ok(FlyqClient { stream, correlation_id: 0 })
+        Ok(FlyqClient {
+            stream,
+            correlation_id: 0,
+        })
     }
 
     async fn send_request(&mut self, payload: RequestPayload) -> Result<(), ProtocolError> {
@@ -30,19 +37,28 @@ impl FlyqClient {
 
         let mut buf = BytesMut::new();
         frame.encode(&mut buf);
-        self.stream.write_all(&buf).await.map_err(ProtocolError::IoError)?;
+        self.stream
+            .write_all(&buf)
+            .await
+            .map_err(ProtocolError::IoError)?;
         Ok(())
     }
 
     async fn read_response(&mut self) -> Result<Frame, ProtocolError> {
         let mut buf = BytesMut::with_capacity(4096);
-        self.stream.read_buf(&mut buf).await.map_err(ProtocolError::IoError)?;
+        self.stream
+            .read_buf(&mut buf)
+            .await
+            .map_err(ProtocolError::IoError)?;
 
-        Frame::decode(&mut buf)?
-            .ok_or(ProtocolError::IncompleteFrame)
+        Frame::decode(&mut buf)?.ok_or(ProtocolError::IncompleteFrame)
     }
-    
-    pub async fn produce(&mut self, topic: &str, payload: &[u8]) -> Result<ProduceAck, ProtocolError> {
+
+    pub async fn produce(
+        &mut self,
+        topic: &str,
+        payload: &[u8],
+    ) -> Result<ProduceAck, ProtocolError> {
         let req = ProduceRequest {
             topic: topic.to_string(),
             message: Bytes::copy_from_slice(payload),
@@ -64,10 +80,12 @@ impl FlyqClient {
         let ack = ProduceAck::deserialize(resp_payload.data)?;
         Ok(ack)
     }
-    
-     
 
-    pub async fn consume(&mut self, topic: &str, offset: u64) -> Result<Option<ConsumeResponse>, ProtocolError> {
+    pub async fn consume(
+        &mut self,
+        topic: &str,
+        offset: u64,
+    ) -> Result<Option<ConsumeResponse>, ProtocolError> {
         let req = ConsumeRequest {
             topic: topic.to_string(),
             partition: 0, // Hardcoded for now
@@ -96,21 +114,26 @@ impl FlyqClient {
         Ok(Some(consume))
     }
 
-    pub async fn consume_with_group(&mut self, topic: &str, partition: u32, group: &str) -> Result<Option<ConsumeResponse>, ProtocolError>{
-        let req = ConsumeWithGroupRequest{
+    pub async fn consume_with_group(
+        &mut self,
+        topic: &str,
+        partition: u32,
+        group: &str,
+    ) -> Result<Option<ConsumeResponse>, ProtocolError> {
+        let req = ConsumeWithGroupRequest {
             topic: topic.to_string(),
             partition,
             group: group.to_string(),
         };
-        
-        let payload = RequestPayload{
+
+        let payload = RequestPayload {
             op_code: OpCode::ConsumeWithGroup,
             data: req.serialize(),
         };
 
         self.send_request(payload).await?;
         let response = self.read_response().await?;
-        
+
         let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
 
         if resp_payload.op_code != OpCode::ConsumeWithGroup {
@@ -125,6 +148,33 @@ impl FlyqClient {
         Ok(Some(consume))
     }
 
+    pub async fn commit_offset(
+        &mut self,
+        topic: &str,
+        partition: u32,
+        group: &str,
+        offset: u64,
+    ) -> Result<(), ProtocolError> {
+        let req = CommitOffsetRequest {
+            topic: topic.to_string(),
+            partition,
+            group: group.to_string(),
+            offset,
+        };
+        let payload = RequestPayload {
+            op_code: OpCode::CommitOffset,
+            data: req.serialize(),
+        };
+
+        self.send_request(payload).await?;
+        let response = self.read_response().await?;
+        let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
+        if resp_payload.op_code != OpCode::CommitOffset {
+            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
+        }
+
+        Ok(())
+    }
 
     // Consume a message from a specified partition at a specific offset.
     pub async fn consume_from_partition(

@@ -12,7 +12,7 @@ mod types;
 async fn main() -> Result<()> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
     let config = Config::parse();
-    let engine = Arc::new(Mutex::new(LogEngine::load(&config.base_dir)));
+    let engine = Arc::new(Mutex::new(LogEngine::load(&config.base_dir).await));
 
     runtime::run(engine.clone(), shutdown_rx).await;
     tokio::select! {

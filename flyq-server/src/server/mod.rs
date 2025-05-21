@@ -8,7 +8,7 @@ use crate::types::SharedLogEngine;
 
 pub async fn start(config:Config, engine:SharedLogEngine) -> anyhow::Result<()>{
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .with_thread_ids(true)
         .compact()

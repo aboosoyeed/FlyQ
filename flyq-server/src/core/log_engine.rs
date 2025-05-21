@@ -10,6 +10,8 @@ use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct LogEngine {
     storage: Storage,
@@ -18,11 +20,11 @@ pub struct LogEngine {
     max_segment_bytes: u64,
     index_interval: u32,
     auto_create_topic: bool,
-    pub offset_tracker: OffsetTracker,
+    pub offset_tracker: Arc<Mutex<OffsetTracker>>,
 }
 
 impl LogEngine {
-    pub fn load<P: AsRef<Path>>(base_dir: P) -> LogEngine {
+    pub async fn load<P: AsRef<Path>>(base_dir: P) -> LogEngine {
         let storage = Storage::new(&base_dir);
         let offset_file = base_dir.as_ref().join("consumer_offsets.json");
 
@@ -32,10 +34,10 @@ impl LogEngine {
             max_segment_bytes: DEFAULT_MAX_SEGMENT_BYTES,
             index_interval: DEFAULT_INDEX_INTERVAL,
             auto_create_topic: DEFAULT_AUTO_CREATE_TOPICS_ENABLE,
-            offset_tracker: OffsetTracker::new(offset_file),
+            offset_tracker: Arc::new(Mutex::new(OffsetTracker::new(offset_file))),
         };
 
-        let _ = engine.offset_tracker.load_from_file();
+        let _ = engine.offset_tracker.lock().await.load_from_file();
 
         engine
             .scan_topics()
@@ -69,6 +71,9 @@ impl LogEngine {
         topic.produce(msg)
     }
 
+    pub fn offset_tracker_handle(&self) -> Arc<Mutex<OffsetTracker>> {
+        Arc::clone(&self.offset_tracker)
+    }
     pub fn consume(
         &mut self,
         topic_name: &str,
@@ -132,19 +137,24 @@ impl LogEngine {
         Ok(partition.high_watermark())
     }
 
-    pub fn consume_with_group(
+    pub async fn consume_with_group(
         &mut self,
         topic: &str,
         partition: u32,
         group: &str,
     ) -> Result<Option<(u64, Message)>, EngineError> {
-        let offset = self.offset_tracker.fetch(group, partition).unwrap_or(0); // default to beginning
+        let offset = self
+            .offset_tracker
+            .lock()
+            .await
+            .fetch(group, partition)
+            .unwrap_or(0); // default to beginning
 
         let message = self.consume(topic, partition, offset)?;
         Ok(message.map(|msg| (offset, msg)))
     }
 
-    pub fn commit_offset(
+    pub async fn commit_offset(
         &mut self,
         topic: &str,
         partition: u32,
@@ -154,7 +164,10 @@ impl LogEngine {
         if !self.topics.contains_key(topic) {
             return Err(EngineError::NoTopic);
         }
-        self.offset_tracker.commit(group, partition, offset);
+        self.offset_tracker
+            .lock()
+            .await
+            .commit(group, partition, offset);
 
         Ok(())
     }

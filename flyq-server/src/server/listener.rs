@@ -3,8 +3,10 @@ use crate::types::SharedLogEngine;
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
 use flyq_protocol::message::Message;
-use flyq_protocol::{ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame, FrameType, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload};
-use std::time::{UNIX_EPOCH};
+use flyq_protocol::{
+    CommitOffsetRequest, ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame,
+    FrameType, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, info};
@@ -72,6 +74,7 @@ async fn dispatch_request(
         OpCode::Produce => handle_produce(request.data, engine).await,
         OpCode::Consume => handle_consume(request.data, engine).await,
         OpCode::ConsumeWithGroup => handle_consume_with_group(request.data, engine).await,
+        OpCode::CommitOffset => handle_commit_offset(request.data, engine).await,
     }
 }
 
@@ -137,16 +140,21 @@ async fn handle_consume_with_group(
     let maybe_msg = engine
         .lock()
         .await
-        .consume_with_group(&consume_req.topic, consume_req.partition, &consume_req.group)
+        .consume_with_group(
+            &consume_req.topic,
+            consume_req.partition,
+            &consume_req.group,
+        ).await
         .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
 
-    debug!("consume_with_group for topic={}, partition={}, group={} => {:?}", 
-        consume_req.topic, 
-        consume_req.partition, 
-        consume_req.group, 
+    debug!(
+        "consume_with_group for topic={}, partition={}, group={} => {:?}",
+        consume_req.topic,
+        consume_req.partition,
+        consume_req.group,
         maybe_msg.as_ref().map(|(o, _)| o)
     );
-    
+
     if let Some((offset, msg)) = maybe_msg {
         let resp = ConsumeResponse {
             offset,
@@ -162,4 +170,30 @@ async fn handle_consume_with_group(
             data: Bytes::new(), // Empty payload means no message found
         })
     }
+}
+
+async fn handle_commit_offset(
+    data: Bytes,
+    engine: &SharedLogEngine,
+) -> Result<ResponsePayload, ProtocolError> {
+    let req = CommitOffsetRequest::deserialize(data)?;
+    engine
+        .lock()
+        .await
+        .commit_offset(&req.topic, req.partition, &req.group, req.offset)
+        .await
+        .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
+
+    debug!(
+        "Committed offset={} for topic={}, partition={}, group={}",
+        req.offset,
+        req.topic,
+        req.partition,
+        req.group
+    );
+
+    Ok(ResponsePayload {
+        op_code: OpCode::CommitOffset,
+        data: Bytes::new(),
+    })
 }

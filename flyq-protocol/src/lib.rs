@@ -15,7 +15,7 @@ pub use message::Message;
 pub use errors::ProtocolError;
 
 // Re-export common requests/responses
-pub use request::{ProduceRequest, ConsumeRequest, ConsumeWithGroupRequest};
+pub use request::{ProduceRequest, ConsumeRequest, ConsumeWithGroupRequest, CommitOffsetRequest};
 pub use response::{ProduceAck, ConsumeResponse};
 
 pub use op_code::{OpCode};

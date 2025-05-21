@@ -6,10 +6,10 @@ use flyQ::core::log_engine::LogEngine;
 use flyq_protocol::Message;
 use crate::common::folder_to_use;
 
-#[test]
-fn test_create_topic_creates_expected_folders_and_metadata() {
+#[tokio::test]
+async fn test_create_topic_creates_expected_folders_and_metadata() {
     let base_dir = folder_to_use();
-    let mut engine = LogEngine::load(&base_dir);
+    let mut engine = LogEngine::load(&base_dir).await;
     let topic_name = "test";
     let partition_count = 2;
 
@@ -54,11 +54,11 @@ fn test_create_topic_creates_expected_folders_and_metadata() {
     );
 }
 
-#[test]
-fn produce_creates_topic_and_segment_if_missing() {
+#[tokio::test]
+async fn produce_creates_topic_and_segment_if_missing() {
     
     let base_dir = folder_to_use();
-    let mut engine = LogEngine::load(&base_dir);
+    let mut engine = LogEngine::load(&base_dir).await;
 
     let topic_name = "clicks";
     let msg = Message {
@@ -88,10 +88,10 @@ fn produce_creates_topic_and_segment_if_missing() {
     assert_eq!(offset, 0);
 }
 
-#[test]
-fn test_engine_consume_returns_produced_message() {
+#[tokio::test]
+async fn test_engine_consume_returns_produced_message() {
     let base_dir = folder_to_use();
-    let mut engine = LogEngine::load(&base_dir);
+    let mut engine = LogEngine::load(&base_dir).await;
 
 
     let topic = "events";
@@ -117,10 +117,10 @@ fn test_engine_consume_returns_produced_message() {
     assert_eq!(returned.headers, msg.headers);
 }
 
-#[test]
-fn test_consume_past_end_returns_none() {
+#[tokio::test]
+async fn test_consume_past_end_returns_none() {
     let base_dir = folder_to_use();
-    let mut engine = LogEngine::load(&base_dir);
+    let mut engine = LogEngine::load(&base_dir).await;
 
     let topic = "orders";
     let msg = Message {

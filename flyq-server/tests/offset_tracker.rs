@@ -3,11 +3,11 @@ use flyq_protocol::Message;
 use crate::common::folder_to_use;
 
 mod common;
-#[test]
-fn test_consumer_group_offset_tracking() {
+#[tokio::test]
+async fn test_consumer_group_offset_tracking() {
 
     let base_dir = folder_to_use();
-    let mut engine = LogEngine::load(base_dir);
+    let mut engine = LogEngine::load(base_dir).await;
 
     let topic = "logs";
     let group = "analytics";
@@ -26,6 +26,7 @@ fn test_consumer_group_offset_tracking() {
     // Consume using group (should default to offset 0)
     let result = engine
         .consume_with_group(topic, partition, group)
+        .await
         .expect("consume_with_group failed");
 
     assert!(result.is_some(), "Expected a message");
@@ -36,21 +37,23 @@ fn test_consumer_group_offset_tracking() {
     // Commit the offset
     engine
         .commit_offset(topic, partition, group, consumed_offset + 1)
+        .await
         .expect("commit_offset failed");
 
     // Consume again from same group (should get nothing)
     let result = engine
         .consume_with_group(topic, partition, group)
+        .await
         .expect("consume_with_group after commit failed");
 
     assert!(result.is_none(), "Expected None after committing past the last offset");
 }
 
-#[test]
-fn test_multiple_consumer_groups_track_offsets_independently() {
+#[tokio::test]
+async fn test_multiple_consumer_groups_track_offsets_independently() {
 
     let base_dir = folder_to_use();
-    let mut engine = LogEngine::load(base_dir);
+    let mut engine = LogEngine::load(base_dir).await;
 
     let topic = "events";
     let group_a = "group-a";
@@ -72,51 +75,63 @@ fn test_multiple_consumer_groups_track_offsets_independently() {
     // Group A consumes and commits offset 1
     let msg_a1 = engine
         .consume_with_group(topic, partition, group_a)
+        .await
         .expect("consume group-a #1")
         .unwrap();
     assert_eq!(msg_a1.0, 0);
     engine
         .commit_offset(topic, partition, group_a, msg_a1.0 + 1)
+        .await
         .expect("commit group-a #1");
 
     // Group B consumes and commits offset 1 (still starts from 0)
     let msg_b1 = engine
         .consume_with_group(topic, partition, group_b)
+        .await
         .expect("consume group-b #1")
         .unwrap();
     assert_eq!(msg_b1.0, 0);
     engine
         .commit_offset(topic, partition, group_b, msg_b1.0 + 1)
+        .await
         .expect("commit group-b #1");
 
     // Group A consumes and commits offset 2
     let msg_a2 = engine
         .consume_with_group(topic, partition, group_a)
+        .await
         .expect("consume group-a #2")
         .unwrap();
     assert_eq!(msg_a2.0, 1);
     engine
         .commit_offset(topic, partition, group_a, msg_a2.0 + 1)
+        .await
         .expect("commit group-a #2");
 
     // Group B consumes and commits offset 2 independently
     let msg_b2 = engine
         .consume_with_group(topic, partition, group_b)
+        .await
         .expect("consume group-b #2")
         .unwrap();
     assert_eq!(msg_b2.0, 1);
     engine
         .commit_offset(topic, partition, group_b, msg_b2.0 + 1)
+        .await
         .expect("commit group-b #2");
 
     // Assert final tracked offsets are the same — but were committed independently
     let a_offset = engine
         .offset_tracker
+        .lock()
+        .await
         .fetch(group_a, partition)
         .expect("group-a offset");
 
     let b_offset = engine
         .offset_tracker
+        .lock()
+        .await
         .fetch(group_b, partition)
         .expect("group-b offset");
 

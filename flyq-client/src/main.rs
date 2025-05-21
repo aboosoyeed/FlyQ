@@ -4,14 +4,14 @@ use flyq_client::client::FlyqClient;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut client = FlyqClient::connect("127.0.0.1:9092").await?;
-    
+
     let topic = "test-topic";
     let payload = b"Hello from FlyQv2!".to_vec();
-    
+
     //let ack = client.produce(topic, &payload).await?;
     //println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
-    
-    let offset =0;
+
+    let offset = 0;
     match client.consume_with_group(topic, 0, "test_group").await? {
         Some(msg) => {
             println!("Consumed message at offset {}", msg.offset);
@@ -32,8 +32,8 @@ async fn main() -> Result<()> {
             println!("No message found at offset {}", offset);
         }
     }
-    
-     
-    
+
+    client.commit_offset(topic, 0, "test_group", 0).await?;
+
     Ok(())
 }

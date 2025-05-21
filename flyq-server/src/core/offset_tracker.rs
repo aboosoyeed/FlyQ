@@ -10,13 +10,12 @@ pub struct OffsetTracker {
 }
 
 impl OffsetTracker {
-    pub fn new<P: Into<PathBuf>>(path:P) -> Self {
+    pub fn new<P: Into<PathBuf>>(path: P) -> Self {
         Self {
             store: HashMap::new(),
             dirty: HashSet::new(),
             path: path.into(),
         }
-                
     }
 
     pub fn commit(&mut self, group: &str, partition: u32, offset: u64) {
@@ -58,8 +57,7 @@ impl OffsetTracker {
         if self.dirty.is_empty() {
             return Ok(());
         }
-
-        // For simplicity, still flush the entire store
+        // For simplicity, still flush the entire store. We will improve this later
         self.save_to_file()?; // serializes self.store
 
         // Clear dirty tracker
@@ -67,5 +65,4 @@ impl OffsetTracker {
 
         Ok(())
     }
-
 }
