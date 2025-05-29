@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use xxhash_rust::xxh3::xxh3_64;
 use flyq_protocol::message::Message;
 use crate::core::constants::{DEFAULT_MAX_SEGMENT_BYTES};
 use crate::core::partition::Partition;
 use crate::core::storage::Storage;
-
+pub type SharedPartition = Arc<Mutex<Partition>>;
 pub struct Topic {
     pub(crate) name: String,
-    pub partitions: HashMap<u32,Partition>,
+    pub partitions: HashMap<u32,Arc<Mutex<Partition>>>,
     storage: Storage,
     partition_count: u32,
     next_partition:u32, // used for partition tracking in round robin allocation
@@ -19,11 +21,12 @@ impl Topic {
         let base_path = &log_engine_storage.base_dir;
         let topic_path = base_path.join(Self::get_dir_name(&name));
         let storage = Storage::new(&topic_path);
-        let mut partitions: HashMap<u32,Partition> =HashMap::new();
+        let mut partitions: HashMap<u32,SharedPartition> =HashMap::new();
         for partition_id in 0..partition_count {
             let partition_path =  topic_path.join(format!("partition_{}",partition_id));
             let p =Partition::open( partition_path, partition_id, DEFAULT_MAX_SEGMENT_BYTES).expect("could not create partition");
-            partitions.insert(partition_id, p);
+            let shared_partition = Arc::new(Mutex::new(p));
+            partitions.insert(partition_id, shared_partition);
         }
         Topic {
             name,
@@ -45,7 +48,7 @@ impl Topic {
             .and_then(|name| name.strip_prefix("topic_"))
             .map(|s| s.to_string());
 
-        let mut partitions: HashMap<u32, Partition> = HashMap::new();
+        let mut partitions: HashMap<u32, SharedPartition> = HashMap::new();
 
         if let Some(name) = topic_name {
             let storage = Storage::new(path);
@@ -53,7 +56,9 @@ impl Topic {
             for entry in entries{
                 let path = entry.expect("could not open entry").path();
                 if let Some(partition) = Partition::scan_existing(path, max_segment_bytes){
-                    partitions.insert(partition.id, partition);
+                    let part_id = partition.id;
+                    let shared_partition = Arc::new(Mutex::new(partition));
+                    partitions.insert(part_id, shared_partition);
                 }
             }
             let partition_count = partitions.len() as u32;
@@ -69,7 +74,7 @@ impl Topic {
         }
     }
 
-    pub fn produce(&mut self, msg: Message) -> std::io::Result<(u32, u64)> {
+    pub async fn produce(&mut self, msg: Message) -> std::io::Result<(u32, u64)> {
         let partition_id = if let Some(key) = &msg.key{
             self.hash_key_to_partition(key)
         }else {
@@ -79,7 +84,7 @@ impl Topic {
         };
         
         let partition = self.partitions.get_mut(&partition_id).expect("Malformed partition map");
-        let offset = partition.append(&msg)?;
+        let offset = partition.lock().await.append(&msg)?;
         Ok((partition_id, offset))
     }
 

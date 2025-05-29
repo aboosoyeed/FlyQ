@@ -59,7 +59,7 @@ impl LogEngine {
     }
 
     // returns (partition_id, offset)
-    pub fn produce(&mut self, topic_name: &str, msg: Message) -> std::io::Result<(u32, u64)> {
+    pub async fn produce(&mut self, topic_name: &str, msg: Message) -> std::io::Result<(u32, u64)> {
         if !self.topics.contains_key(topic_name) {
             self.ensure_topic(topic_name)
                 .expect("topic creation failed");
@@ -68,13 +68,13 @@ impl LogEngine {
             .topics
             .get_mut(topic_name)
             .expect("topic should exist now");
-        topic.produce(msg)
+        topic.produce(msg).await
     }
 
     pub fn offset_tracker_handle(&self) -> Arc<Mutex<OffsetTracker>> {
         Arc::clone(&self.offset_tracker)
     }
-    pub fn consume(
+    pub async fn consume(
         &mut self,
         topic_name: &str,
         partition_id: u32,
@@ -89,7 +89,8 @@ impl LogEngine {
             .partitions
             .get_mut(&partition_id)
             .ok_or(EngineError::NoPartition)?;
-        let mut stream = match partition.stream_from_offset(offset) {
+        let mut partition_guard = partition.lock().await;
+        let mut stream = match partition_guard.stream_from_offset(offset) {
             Ok(s) => s,
             Err(DeserializeError::OffsetNotFound(_)) => return Ok(None), // 👈 graceful EOF
             Err(e) => return Err(e.into()), // 👈 other deserialization errors
@@ -128,13 +129,13 @@ impl LogEngine {
         }
     }
 
-    fn high_watermark(&self, topic: &str, partition_id: u32) -> Result<u64, EngineError> {
+    async fn high_watermark(&self, topic: &str, partition_id: u32) -> Result<u64, EngineError> {
         let topic = self.topics.get(topic).ok_or(EngineError::NoTopic)?;
         let partition = topic
             .partitions
             .get(&partition_id)
             .ok_or(EngineError::NoPartition)?;
-        Ok(partition.high_watermark())
+        Ok(partition.lock().await.high_watermark())
     }
 
     pub async fn consume_with_group(
@@ -150,7 +151,7 @@ impl LogEngine {
             .fetch(group, partition)
             .unwrap_or(0); // default to beginning
 
-        let message = self.consume(topic, partition, offset)?;
+        let message = self.consume(topic, partition, offset).await?;
         Ok(message.map(|msg| (offset, msg)))
     }
 

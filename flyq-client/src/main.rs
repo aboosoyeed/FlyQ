@@ -8,9 +8,9 @@ async fn main() -> Result<()> {
     let topic = "test-topic";
     let payload = b"Hello from FlyQv2!".to_vec();
 
-    //let ack = client.produce(topic, &payload).await?;
-    //println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
-
+    let ack = client.produce(topic, &payload).await?;
+    println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
+    /*
     let offset = 0;
     match client.consume_with_group(topic, 0, "test_group").await? {
         Some(msg) => {
@@ -34,6 +34,6 @@ async fn main() -> Result<()> {
     }
 
     client.commit_offset(topic, 0, "test_group", 0).await?;
-
+    */
     Ok(())
 }

@@ -20,7 +20,7 @@ async fn test_consumer_group_offset_tracking() {
         headers: None,
     };
 
-    let (partition, offset) = engine.produce(topic, msg.clone()).expect("produce failed");
+    let (partition, offset) = engine.produce(topic, msg.clone()).await.expect("produce failed");
     assert_eq!(offset, 0);
 
     // Consume using group (should default to offset 0)
@@ -67,7 +67,7 @@ async fn test_multiple_consumer_groups_track_offsets_independently() {
             timestamp: 100 + i,
             headers: None,
         };
-        engine.produce(topic, msg).expect("produce failed");
+        engine.produce(topic, msg).await.expect("produce failed");
     }
 
     let partition = 0;

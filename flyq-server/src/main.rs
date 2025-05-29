@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 
 mod runtime;
 mod server;
-mod types;
+pub mod types;
 #[tokio::main]
 async fn main() -> Result<()> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());

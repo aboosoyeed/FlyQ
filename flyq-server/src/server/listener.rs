@@ -94,7 +94,7 @@ async fn handle_produce(
     let (partition, offset) = engine
         .lock()
         .await
-        .produce(&produce_req.topic, message)
+        .produce(&produce_req.topic, message).await
         .map_err(ProtocolError::IoError)?;
 
     let ack = ProduceAck { partition, offset };
@@ -113,7 +113,7 @@ async fn handle_consume(
     let maybe_msg = engine
         .lock()
         .await
-        .consume(&consume_req.topic, 0, consume_req.offset)
+        .consume(&consume_req.topic, 0, consume_req.offset).await
         .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
     if let Some(msg) = maybe_msg {
         let resp = ConsumeResponse {

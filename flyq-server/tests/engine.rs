@@ -69,7 +69,7 @@ async fn produce_creates_topic_and_segment_if_missing() {
     };
 
     // ACT: produce a message
-    let (partition_id, offset) = engine.produce(topic_name, msg).expect("produce failed");
+    let (partition_id, offset) = engine.produce(topic_name, msg).await.expect("produce failed");
 
     // ASSERT: topic dir created
     let topic_dir = base_dir.join(format!("topic_{}", topic_name));
@@ -103,10 +103,10 @@ async fn test_engine_consume_returns_produced_message() {
     };
 
     // Produce the message
-    let (partition_id, offset) = engine.produce(topic, msg.clone()).expect("produce failed");
+    let (partition_id, offset) = engine.produce(topic, msg.clone()).await.expect("produce failed");
 
     // Now consume from the same offset
-    let result = engine.consume(topic, partition_id, offset).expect("consume failed");
+    let result = engine.consume(topic, partition_id, offset).await.expect("consume failed");
 
     assert!(result.is_some(), "Expected message to be returned");
     let returned = result.unwrap();
@@ -131,11 +131,11 @@ async fn test_consume_past_end_returns_none() {
     };
 
     // Produce one message
-    let (partition_id, offset) = engine.produce(topic, msg).expect("produce failed");
+    let (partition_id, offset) = engine.produce(topic, msg).await.expect("produce failed");
     assert_eq!(offset, 0);
 
     // Try consuming one past the last offset
-    let result = engine.consume(topic, partition_id, offset + 1)
+    let result = engine.consume(topic, partition_id, offset + 1).await
         .expect("consume failed at offset beyond end");
 
     assert!(

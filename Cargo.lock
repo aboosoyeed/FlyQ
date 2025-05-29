@@ -233,6 +233,7 @@ dependencies = [
  "chrono",
  "clap",
  "flyq-protocol",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",

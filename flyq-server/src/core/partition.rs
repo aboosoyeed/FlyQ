@@ -2,11 +2,13 @@ use crate::core::segment::{Segment, SegmentIterator};
 use crate::core::storage::Storage;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
-use std::ops::Deref;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::debug;
 use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
+use crate::core::partition_state::PartitionState;
+use crate::core::partiton_meta::PartitionMeta;
 use crate::core::stored_record::StoredRecord;
 
 pub struct Partition {
@@ -14,8 +16,10 @@ pub struct Partition {
     pub storage: Storage,                 // ← base directory for segments
     pub segments: BTreeMap<u64, Segment>, // base_offset → segment
     pub active_segment: u64,
-    pub next_offset: u64,
     pub max_segment_bytes: u64,
+    pub state: PartitionState,
+    
+    pub meta_flush_pending: AtomicBool
 }
 
 impl Partition {
@@ -52,9 +56,9 @@ impl Partition {
                     Segment::recover_from_disk(path, &filename)
                 {
                     self.segments.insert(base_offset, segment);
-
-                    if next_offset > self.next_offset {
-                        self.next_offset = next_offset;
+                    let current_log_end = self.state.log_end_offset();
+                    if next_offset > current_log_end {
+                        self.state.set_log_end_offset(next_offset);
                         self.active_segment = base_offset;
                     }
                 }
@@ -72,10 +76,12 @@ impl Partition {
             storage,
             segments: BTreeMap::new(),
             active_segment: 0, // will update below
-            next_offset: 0,
             max_segment_bytes,
+            state: PartitionState::new(0),
+            meta_flush_pending: AtomicBool::new(false),
         };
-
+        
+        partition.load_meta()?;
         partition.scan_segments()?;
 
         if partition.segments.is_empty() {
@@ -86,8 +92,7 @@ impl Partition {
     }
 
     pub fn append(&mut self, msg: &Message) -> std::io::Result<u64> {
-        let offset = self.next_offset;
-        //let bytes = msg.serialize_for_disk(offset);
+        let offset = self.state.fetch_and_increment_log_end();
         let record = StoredRecord { offset, message: msg.clone() };
         let bytes = record.serialize();
         
@@ -109,7 +114,8 @@ impl Partition {
             .get_mut(&self.active_segment)
             .expect("active_segment not initialized");
 
-        self.next_offset += 1;
+        self.state.set_high_watermark(offset); // ← for now, fully committed instantly
+        self.meta_flush_pending.store(true, Ordering::Relaxed);
         segment.append(offset, &bytes)?;
 
         debug!(offset, segment = self.active_segment, "Appended message");
@@ -145,8 +151,38 @@ impl Partition {
     }
 
     pub fn high_watermark(&self) -> u64 {
-        self.next_offset
+        self.state.high_watermark()
     }
+
+    pub fn meta_path(&self) -> PathBuf {
+        self.storage.base_dir.join("meta.json")
+    }
+    
+    pub fn persist_meta(&self) ->std::io::Result<()>{
+        let meta = PartitionMeta{
+            low_watermark: self.state.low_watermark(),
+            high_watermark: self.state.high_watermark(),
+            log_end_offset: self.state.log_end_offset(),
+        };
+        PartitionMeta::save(&self.meta_path(), &meta)?;
+        Ok(())
+    }
+    
+    pub fn load_meta(&mut self) -> std::io::Result<()>{
+        //let meta = PartitionMeta::load(&self.meta_path())?;
+        match PartitionMeta::load(&self.meta_path())?{
+            Some(meta) => {
+                self.state = PartitionState::from_meta(&meta);
+
+            }
+            None => {
+                self.state = PartitionState::new(0);
+            }
+
+        }
+        Ok(())
+    }
+    
 }
 
 pub struct PartitionIterator<'a> {
