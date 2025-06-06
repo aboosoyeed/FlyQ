@@ -1,12 +1,12 @@
-use crate::server::config::Config;
+use crate::server::params::Params;
 
-pub(crate) mod config;
+pub(crate) mod params;
 mod listener;
 
 use tracing::info;
 use crate::types::SharedLogEngine;
 
-pub async fn start(config:Config, engine:SharedLogEngine) -> anyhow::Result<()>{
+pub async fn start(config: Params, engine:SharedLogEngine) -> anyhow::Result<()>{
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .with_target(false)

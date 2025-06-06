@@ -1,4 +1,4 @@
-use crate::server::config::Config;
+use crate::server::params::Params;
 use crate::types::SharedLogEngine;
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
@@ -12,7 +12,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, info};
 
-pub async fn start(config: Config, engine: SharedLogEngine) -> Result<()> {
+pub async fn start(config: Params, engine: SharedLogEngine) -> Result<()> {
     info!("log engine initiated");
     let addr = format!("0.0.0.0:{}", config.port);
     let listener = TcpListener::bind(addr)

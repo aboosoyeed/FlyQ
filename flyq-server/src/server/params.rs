@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "flyq-server")]
-pub struct Config {
+pub struct Params {
     #[arg(long, env = "FLYQ_BASE_DIR", default_value = "./data")]
     pub base_dir: String,
 
