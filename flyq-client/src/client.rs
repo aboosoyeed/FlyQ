@@ -206,7 +206,19 @@ impl FlyqClient {
     ) -> anyhow::Result<Option<(u32, u64, Message)>> {
         todo!()
     }
-
+    
+    /*
+    pub async fn get_partition_health(
+        &mut self,
+        topic: &str,
+        partition: u32,
+    ) -> anyhow::Result<Option<PartitionHealth>> {
+        //segment_count: u32,
+        //     pub offset_lag: u64,
+        todo!() // TODO: implement partition health endpoint
+    }
+    */
+    
     pub async fn get_watermarks(
         &mut self,
         topic: &str,
