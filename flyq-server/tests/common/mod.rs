@@ -14,12 +14,6 @@ fn clear_folder<P: AsRef<Path>>(folder_path: P) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn folder_to_use1() ->PathBuf{
-    let base_dir = PathBuf::from("/home/aboosoyeed/personal/data");
-    let _ = clear_folder(&base_dir);
-    base_dir
-}
-
 pub fn folder_to_use() -> PathBuf {
     tempfile::Builder::new()
         .prefix("flyq_test_")
@@ -27,4 +21,3 @@ pub fn folder_to_use() -> PathBuf {
         .expect("failed to create temp dir")
         .into_path()
 }
-

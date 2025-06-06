@@ -129,13 +129,17 @@ impl LogEngine {
         }
     }
 
-    async fn high_watermark(&self, topic: &str, partition_id: u32) -> Result<u64, EngineError> {
+    pub async fn get_watermark(
+        &self,
+        topic: &str,
+        partition_id: u32,
+    ) -> Result<(u64, u64, u64), EngineError> {
         let topic = self.topics.get(topic).ok_or(EngineError::NoTopic)?;
         let partition = topic
             .partitions
             .get(&partition_id)
             .ok_or(EngineError::NoPartition)?;
-        Ok(partition.lock().await.high_watermark())
+        Ok(partition.lock().await.get_watermark())
     }
 
     pub async fn consume_with_group(

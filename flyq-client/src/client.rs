@@ -3,7 +3,7 @@ use bytes::{Bytes, BytesMut};
 use flyq_protocol::{
     CommitOffsetRequest, ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame,
     FrameType, Message, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload,
-    ResponsePayload,
+    ResponsePayload, WatermarkRequest, WatermarkResponse,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -205,5 +205,28 @@ impl FlyqClient {
         last_seen_offset: u64,
     ) -> anyhow::Result<Option<(u32, u64, Message)>> {
         todo!()
+    }
+
+    pub async fn get_watermarks(
+        &mut self,
+        topic: &str,
+        partition: u32,
+    ) -> Result<Option<WatermarkResponse>, ProtocolError> {
+        let req = WatermarkRequest {
+            topic: topic.to_string(),
+            partition,
+        };
+        let payload = RequestPayload {
+            op_code: OpCode::Watermark,
+            data: req.serialize(),
+        };
+        self.send_request(payload).await?;
+        let response = self.read_response().await?;
+        let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
+        if resp_payload.op_code != OpCode::Watermark {
+            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
+        }
+        let watermark = WatermarkResponse::deserialize(resp_payload.data)?;
+        Ok(Some(watermark))
     }
 }

@@ -6,6 +6,7 @@ use flyq_protocol::message::Message;
 use flyq_protocol::{
     CommitOffsetRequest, ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame,
     FrameType, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload,
+    WatermarkRequest, WatermarkResponse,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -75,6 +76,7 @@ async fn dispatch_request(
         OpCode::Consume => handle_consume(request.data, engine).await,
         OpCode::ConsumeWithGroup => handle_consume_with_group(request.data, engine).await,
         OpCode::CommitOffset => handle_commit_offset(request.data, engine).await,
+        OpCode::Watermark => handle_watermark(request.data, engine).await,
     }
 }
 
@@ -94,7 +96,8 @@ async fn handle_produce(
     let (partition, offset) = engine
         .lock()
         .await
-        .produce(&produce_req.topic, message).await
+        .produce(&produce_req.topic, message)
+        .await
         .map_err(ProtocolError::IoError)?;
 
     let ack = ProduceAck { partition, offset };
@@ -113,7 +116,8 @@ async fn handle_consume(
     let maybe_msg = engine
         .lock()
         .await
-        .consume(&consume_req.topic, 0, consume_req.offset).await
+        .consume(&consume_req.topic, 0, consume_req.offset)
+        .await
         .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
     if let Some(msg) = maybe_msg {
         let resp = ConsumeResponse {
@@ -144,7 +148,8 @@ async fn handle_consume_with_group(
             &consume_req.topic,
             consume_req.partition,
             &consume_req.group,
-        ).await
+        )
+        .await
         .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
 
     debug!(
@@ -186,14 +191,33 @@ async fn handle_commit_offset(
 
     debug!(
         "Committed offset={} for topic={}, partition={}, group={}",
-        req.offset,
-        req.topic,
-        req.partition,
-        req.group
+        req.offset, req.topic, req.partition, req.group
     );
 
     Ok(ResponsePayload {
         op_code: OpCode::CommitOffset,
         data: Bytes::new(),
+    })
+}
+
+async fn handle_watermark(
+    data: Bytes,
+    engine: &SharedLogEngine,
+) -> Result<ResponsePayload, ProtocolError> {
+    let req = WatermarkRequest::deserialize(data)?;
+    let w = engine
+        .lock()
+        .await
+        .get_watermark(&req.topic, req.partition)
+        .await
+        .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
+    let resp = WatermarkResponse {
+        low_watermark: w.0,
+        high_watermark: w.1,
+        log_end_offset: w.2,
+    };
+    Ok(ResponsePayload {
+        op_code: OpCode::Watermark,
+        data: resp.serialize(),
     })
 }

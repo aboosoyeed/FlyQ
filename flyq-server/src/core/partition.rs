@@ -1,15 +1,15 @@
+use crate::core::partition_state::PartitionState;
+use crate::core::partiton_meta::PartitionMeta;
 use crate::core::segment::{Segment, SegmentIterator};
 use crate::core::storage::Storage;
+use crate::core::stored_record::StoredRecord;
+use flyq_protocol::errors::DeserializeError;
+use flyq_protocol::message::Message;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::debug;
-use flyq_protocol::errors::DeserializeError;
-use flyq_protocol::message::Message;
-use crate::core::partition_state::PartitionState;
-use crate::core::partiton_meta::PartitionMeta;
-use crate::core::stored_record::StoredRecord;
 
 pub struct Partition {
     pub id: u32,
@@ -18,8 +18,8 @@ pub struct Partition {
     pub active_segment: u64,
     pub max_segment_bytes: u64,
     pub state: PartitionState,
-    
-    pub meta_flush_pending: AtomicBool
+
+    pub meta_flush_pending: AtomicBool,
 }
 
 impl Partition {
@@ -38,12 +38,14 @@ impl Partition {
             .and_then(|name| name.strip_prefix("partition_"))
             .map(|s| s.to_string());
 
-        partition_segment.map(|partition_id| Partition::open(
-                    path,
-                    partition_id.to_string().parse().unwrap(),
-                    max_segment_bytes,
-                )
-                .expect("Could not load partition"))
+        partition_segment.map(|partition_id| {
+            Partition::open(
+                path,
+                partition_id.to_string().parse().unwrap(),
+                max_segment_bytes,
+            )
+            .expect("Could not load partition")
+        })
     }
 
     fn scan_segments(&mut self) -> std::io::Result<()> {
@@ -80,7 +82,7 @@ impl Partition {
             state: PartitionState::new(0),
             meta_flush_pending: AtomicBool::new(false),
         };
-        
+
         partition.load_meta()?;
         partition.scan_segments()?;
 
@@ -93,9 +95,12 @@ impl Partition {
 
     pub fn append(&mut self, msg: &Message) -> std::io::Result<u64> {
         let offset = self.state.fetch_and_increment_log_end();
-        let record = StoredRecord { offset, message: msg.clone() };
+        let record = StoredRecord {
+            offset,
+            message: msg.clone(),
+        };
         let bytes = record.serialize();
-        
+
         // Get active segment (may be replaced if rotated)
         let mut rotate = false;
         if let Some(segment) = self.segments.get(&self.active_segment) {
@@ -126,16 +131,13 @@ impl Partition {
         &mut self,
         offset: u64,
     ) -> Result<PartitionIterator, DeserializeError> {
-        
         let start_key = self
             .segments
             .iter()
             .rev()
             .find(|(_, seg)| seg.base_offset <= offset && seg.last_offset >= offset)
             .map(|(&k, _)| k)
-            .ok_or({
-                DeserializeError::OffsetNotFound(offset)
-            })?;
+            .ok_or({ DeserializeError::OffsetNotFound(offset) })?;
         let segments = self.segments.range(start_key..);
 
         Ok(PartitionIterator {
@@ -150,16 +152,20 @@ impl Partition {
             .collect::<Result<Vec<_>, _>>()
     }
 
-    pub fn high_watermark(&self) -> u64 {
-        self.state.high_watermark()
+    pub fn get_watermark(&self) -> (u64, u64, u64) {
+        (
+            self.state.low_watermark(),
+            self.state.high_watermark(),
+            self.state.log_end_offset(),
+        )
     }
 
     pub fn meta_path(&self) -> PathBuf {
         self.storage.base_dir.join("meta.json")
     }
-    
-    pub fn persist_meta(&self) ->std::io::Result<()>{
-        let meta = PartitionMeta{
+
+    pub fn persist_meta(&self) -> std::io::Result<()> {
+        let meta = PartitionMeta {
             low_watermark: self.state.low_watermark(),
             high_watermark: self.state.high_watermark(),
             log_end_offset: self.state.log_end_offset(),
@@ -167,22 +173,19 @@ impl Partition {
         PartitionMeta::save(&self.meta_path(), &meta)?;
         Ok(())
     }
-    
-    pub fn load_meta(&mut self) -> std::io::Result<()>{
+
+    pub fn load_meta(&mut self) -> std::io::Result<()> {
         //let meta = PartitionMeta::load(&self.meta_path())?;
-        match PartitionMeta::load(&self.meta_path())?{
+        match PartitionMeta::load(&self.meta_path())? {
             Some(meta) => {
                 self.state = PartitionState::from_meta(&meta);
-
             }
             None => {
                 self.state = PartitionState::new(0);
             }
-
         }
         Ok(())
     }
-    
 }
 
 pub struct PartitionIterator<'a> {
@@ -226,8 +229,8 @@ impl Iterator for PartitionIterator<'_> {
 
 #[cfg(test)]
 mod tests {
-    use flyq_protocol::message::Message;
     use crate::core::partition::Partition;
+    use flyq_protocol::message::Message;
 
     /// Test: Basic append + read on single-partition log
     ///

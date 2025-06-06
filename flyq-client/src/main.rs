@@ -8,8 +8,11 @@ async fn main() -> Result<()> {
     let topic = "test-topic";
     let payload = b"Hello from FlyQv2!".to_vec();
 
-    let ack = client.produce(topic, &payload).await?;
-    println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
+    //let ack = client.produce(topic, &payload).await?;
+    //println!("Produced to partition {}, offset {}", ack.partition, ack.offset);
+    
+    let x = client.get_watermarks("test-topic", 0).await?;
+    println!("{:?}", x);
     /*
     let offset = 0;
     match client.consume_with_group(topic, 0, "test_group").await? {

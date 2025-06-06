@@ -1,23 +1,24 @@
-pub mod frame;
-pub mod payload;
-pub mod message;
 pub mod errors;
+pub mod frame;
+pub mod message;
+mod op_code;
+pub mod payload;
 mod request;
 mod response;
-mod op_code;
 mod utils;
 
-
 // Public re-exports for easy access
-pub use frame::{Frame, FrameType};
-pub use payload::{RequestPayload, ResponsePayload};
-pub use message::Message;
 pub use errors::ProtocolError;
+pub use frame::{Frame, FrameType};
+pub use message::Message;
+pub use payload::{RequestPayload, ResponsePayload};
 
 // Re-export common requests/responses
-pub use request::{ProduceRequest, ConsumeRequest, ConsumeWithGroupRequest, CommitOffsetRequest};
-pub use response::{ProduceAck, ConsumeResponse};
+pub use request::{
+    CommitOffsetRequest, ConsumeRequest, ConsumeWithGroupRequest, ProduceRequest, WatermarkRequest,
+};
+pub use response::{ConsumeResponse, ProduceAck, WatermarkResponse};
 
-pub use op_code::{OpCode};
+pub use op_code::OpCode;
 
 pub use utils::read_bytes;
