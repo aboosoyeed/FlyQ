@@ -2,6 +2,7 @@ use crate::server::params::Params;
 
 pub(crate) mod params;
 mod listener;
+mod config;
 
 use tracing::info;
 use crate::types::SharedLogEngine;
