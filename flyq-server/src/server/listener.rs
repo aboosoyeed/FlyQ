@@ -12,9 +12,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, info};
 
-pub async fn start(config: Params, engine: SharedLogEngine) -> Result<()> {
+pub async fn start(params: Params, engine: SharedLogEngine) -> Result<()> {
     info!("log engine initiated");
-    let addr = format!("0.0.0.0:{}", config.port);
+    let addr = format!("0.0.0.0:{}", params.port);
     let listener = TcpListener::bind(addr)
         .await
         .context("Failed to bind TCP listener")?;

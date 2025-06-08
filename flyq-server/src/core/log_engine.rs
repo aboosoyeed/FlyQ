@@ -12,12 +12,12 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use crate::broker_config;
 
 pub struct LogEngine {
     storage: Storage,
     pub topics: HashMap<String, Topic>,
     // optional config knobs:
-    max_segment_bytes: u64,
     index_interval: u32,
     auto_create_topic: bool,
     pub offset_tracker: Arc<Mutex<OffsetTracker>>,
@@ -31,7 +31,6 @@ impl LogEngine {
         let mut engine = LogEngine {
             storage,
             topics: HashMap::new(),
-            max_segment_bytes: DEFAULT_MAX_SEGMENT_BYTES,
             index_interval: DEFAULT_INDEX_INTERVAL,
             auto_create_topic: DEFAULT_AUTO_CREATE_TOPICS_ENABLE,
             offset_tracker: Arc::new(Mutex::new(OffsetTracker::new(offset_file))),
@@ -47,10 +46,11 @@ impl LogEngine {
 
     fn scan_topics(&mut self) -> std::io::Result<()> {
         let entries = self.storage.scan_base();
+        let cfg = broker_config();
         for entry in entries {
             let path = entry?.path();
             if path.is_dir() {
-                if let Some(topic) = Topic::scan_existing(path, self.max_segment_bytes) {
+                if let Some(topic) = Topic::scan_existing(path, cfg.segment_max_bytes) {
                     self.topics.insert(topic.name.clone(), topic);
                 }
             }
@@ -108,10 +108,13 @@ impl LogEngine {
         partition_count: Option<u32>,
     ) -> &Topic {
         let name = name.into();
+        let cfg = broker_config();
+        
         let topic = Topic::new(
             name.clone(),
             &self.storage,
             partition_count.unwrap_or(DEFAULT_PARTITION_CNT),
+            cfg.segment_max_bytes
         );
         self.topics.insert(name.clone(), topic);
         self.topics.get(&name).unwrap()

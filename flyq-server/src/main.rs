@@ -4,14 +4,20 @@ use clap::Parser;
 use flyQ::core::log_engine::LogEngine;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use flyQ::{BROKER_CONFIG, BrokerConfig};
 
 mod runtime;
 mod server;
 pub mod types;
+mod config;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
     let params = Params::parse();
+    let cfg = BrokerConfig::load_or_default(params.config.as_deref())?; 
+    BROKER_CONFIG.set(cfg).expect("config initialised twice");
+    
     let engine = Arc::new(Mutex::new(LogEngine::load(&params.base_dir).await));
 
     runtime::run(engine.clone(), shutdown_rx).await;

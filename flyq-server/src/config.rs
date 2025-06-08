@@ -35,6 +35,13 @@ impl Default for BrokerConfig {
 }
 
 impl BrokerConfig {
+
+    pub fn load_or_default<P: AsRef<Path>>(path: Option<P>) -> Result<Self> {
+        match path {
+            Some(p) => Self::read_from_file(p), // propagate errors unchanged
+            None => Ok(Self::default()),
+        }
+    }
     fn read_from_file<P: AsRef<Path>>(path: P)->Result<Self>{
         let raw = fs::read_to_string(&path)
             .with_context(|| format!("reading {:?}", path.as_ref()))?;

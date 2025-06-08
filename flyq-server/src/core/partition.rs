@@ -9,6 +9,7 @@ use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::io;
 use tracing::debug;
 
 pub struct Partition {
@@ -164,7 +165,7 @@ impl Partition {
         self.storage.base_dir.join("meta.json")
     }
 
-    pub fn persist_meta(&self) -> std::io::Result<()> {
+    pub fn persist_meta(&self) -> io::Result<()> {
         let meta = PartitionMeta {
             low_watermark: self.state.low_watermark(),
             high_watermark: self.state.high_watermark(),
@@ -174,7 +175,7 @@ impl Partition {
         Ok(())
     }
 
-    pub fn load_meta(&mut self) -> std::io::Result<()> {
+    pub fn load_meta(&mut self) -> io::Result<()> {
         //let meta = PartitionMeta::load(&self.meta_path())?;
         match PartitionMeta::load(&self.meta_path())? {
             Some(meta) => {

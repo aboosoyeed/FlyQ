@@ -8,5 +8,8 @@ pub struct Params {
 
     #[arg(long, env = "FLYQ_PORT", default_value_t = 9092)]
     pub port: u16,
+
+    #[arg(long, env = "FLYQ_CONFIG")]
+    pub config: Option<String>,
 }
 
