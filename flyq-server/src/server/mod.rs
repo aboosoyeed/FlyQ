@@ -3,7 +3,6 @@ use crate::server::params::Params;
 pub(crate) mod params;
 mod listener;
 
-use tracing::info;
 use crate::types::SharedLogEngine;
 
 pub async fn start(params: Params, engine:SharedLogEngine) -> anyhow::Result<()>{

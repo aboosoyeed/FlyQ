@@ -1,5 +1,5 @@
 use crate::core::constants::{
-    DEFAULT_AUTO_CREATE_TOPICS_ENABLE, DEFAULT_INDEX_INTERVAL,
+    DEFAULT_AUTO_CREATE_TOPICS_ENABLE,
     DEFAULT_PARTITION_CNT,
 };
 use crate::core::error::EngineError;
@@ -12,14 +12,12 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::info;
 use crate::broker_config;
 
 pub struct LogEngine {
     storage: Storage,
     pub topics: HashMap<String, Topic>,
     // optional config knobs:
-    index_interval: u32,
     auto_create_topic: bool,
     pub offset_tracker: Arc<Mutex<OffsetTracker>>,
 }
@@ -32,7 +30,6 @@ impl LogEngine {
         let mut engine = LogEngine {
             storage,
             topics: HashMap::new(),
-            index_interval: DEFAULT_INDEX_INTERVAL,
             auto_create_topic: DEFAULT_AUTO_CREATE_TOPICS_ENABLE,
             offset_tracker: Arc::new(Mutex::new(OffsetTracker::new(offset_file))),
         };
@@ -110,7 +107,7 @@ impl LogEngine {
     ) -> &Topic {
         let name = name.into();
         let cfg = broker_config();
-        
+
         let topic = Topic::new(
             name.clone(),
             &self.storage,
