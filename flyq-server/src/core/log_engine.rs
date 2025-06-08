@@ -1,5 +1,5 @@
 use crate::core::constants::{
-    DEFAULT_AUTO_CREATE_TOPICS_ENABLE, DEFAULT_INDEX_INTERVAL, DEFAULT_MAX_SEGMENT_BYTES,
+    DEFAULT_AUTO_CREATE_TOPICS_ENABLE, DEFAULT_INDEX_INTERVAL,
     DEFAULT_PARTITION_CNT,
 };
 use crate::core::error::EngineError;
@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tracing::info;
 use crate::broker_config;
 
 pub struct LogEngine {
