@@ -10,5 +10,5 @@ pub static BROKER_CONFIG: OnceLock<BrokerConfig> = OnceLock::new();
 
 /// Convenience accessor used throughout the codebase.
 pub fn broker_config() -> &'static BrokerConfig {
-    BROKER_CONFIG.get().expect("BrokerConfig not initialised")
+    BROKER_CONFIG.get_or_init(BrokerConfig::default)
 }

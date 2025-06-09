@@ -7,6 +7,7 @@ use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io;
@@ -15,7 +16,7 @@ use tracing::debug;
 pub struct Partition {
     pub id: u32,
     pub storage: Storage,                 // ← base directory for segments
-    pub segments: BTreeMap<u64, Segment>, // base_offset → segment
+    pub segments: BTreeMap<u64, Arc<Mutex<Segment>>>, // base_offset → segment
     pub active_segment: u64,
     pub max_segment_bytes: u64,
     pub state: PartitionState,
@@ -26,7 +27,8 @@ pub struct Partition {
 impl Partition {
     fn new_segment(&mut self, base_offset: u64) -> std::io::Result<()> {
         let segment = Segment::new(base_offset, &self.storage);
-        self.segments.insert(base_offset, segment);
+        self.segments
+            .insert(base_offset, Arc::new(Mutex::new(segment)));
         self.active_segment = base_offset;
 
         Ok(())
@@ -58,7 +60,9 @@ impl Partition {
                 if let Some((base_offset, next_offset, segment)) =
                     Segment::recover_from_disk(path, &filename)
                 {
-                    self.segments.insert(base_offset, segment);
+                    self
+                        .segments
+                        .insert(base_offset, Arc::new(Mutex::new(segment)));
                     let current_log_end = self.state.log_end_offset();
                     if next_offset > current_log_end {
                         self.state.set_log_end_offset(next_offset);
@@ -105,6 +109,7 @@ impl Partition {
         // Get active segment (may be replaced if rotated)
         let mut rotate = false;
         if let Some(segment) = self.segments.get(&self.active_segment) {
+            let segment = segment.lock().unwrap();
             if segment.size > 0 && segment.size + bytes.len() as u64 > self.max_segment_bytes {
                 rotate = true;
             }
@@ -117,8 +122,10 @@ impl Partition {
 
         let segment = self
             .segments
-            .get_mut(&self.active_segment)
-            .expect("active_segment not initialized");
+            .get(&self.active_segment)
+            .expect("active_segment not initialized")
+            .clone();
+        let mut segment = segment.lock().unwrap();
 
         self.state.set_high_watermark(offset); // ← for now, fully committed instantly
         self.meta_flush_pending.store(true, Ordering::Relaxed);
@@ -136,7 +143,10 @@ impl Partition {
             .segments
             .iter()
             .rev()
-            .find(|(_, seg)| seg.base_offset <= offset && seg.last_offset >= offset)
+            .find(|(_, seg)| {
+                let seg = seg.lock().unwrap();
+                seg.base_offset <= offset && seg.last_offset >= offset
+            })
             .map(|(&k, _)| k)
             .ok_or( DeserializeError::OffsetNotFound(offset) )?;
         let segments = self.segments.range(start_key..);
@@ -190,7 +200,7 @@ impl Partition {
 }
 
 pub struct PartitionIterator<'a> {
-    segments: Range<'a, u64, Segment>, // iterates over Segment references
+    segments: Range<'a, u64, Arc<Mutex<Segment>>>, // iterates over Segment Arc wrappers
     current_iter: Option<SegmentIterator>,
     next_offset: u64,
 }
@@ -216,11 +226,15 @@ impl Iterator for PartitionIterator<'_> {
             }
 
             // Move to the next segment
-            let (_, segment) = self.segments.next()?;
-            match segment.stream_from_offset(self.next_offset) {
+            let (_, segment_arc) = self.segments.next()?;
+            let (iter_res, last_offset) = {
+                let segment = segment_arc.lock().unwrap();
+                (segment.stream_from_offset(self.next_offset), segment.last_offset)
+            };
+            match iter_res {
                 Ok(iter) => {
                     self.current_iter = Some(iter);
-                    self.next_offset = segment.last_offset + 1;
+                    self.next_offset = last_offset + 1;
                 }
                 Err(e) => return Some(Err(e)),
             }
