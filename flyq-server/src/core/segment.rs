@@ -53,11 +53,11 @@ impl Segment {
     }
 
     pub fn parse_base_offset(filename: &str) -> Option<u64> {
-        filename
-            .strip_prefix("segment_")?
+        let without_prefix = filename.strip_prefix("segment_")?;
+        let trimmed = without_prefix
             .strip_suffix(".log")
-            .or_else(|| filename.strip_suffix(".index"))
-            .and_then(|s| s.parse::<u64>().ok())
+            .or_else(|| without_prefix.strip_suffix(".index"))?;
+        trimmed.parse::<u64>().ok()
     }
 
     pub fn append(&mut self, offset: u64, bytes: &[u8]) -> std::io::Result<u64> {
@@ -388,5 +388,13 @@ mod tests {
         ];
 
         assert_eq!(messages, expected);
+    }
+
+    #[test]
+    fn test_parse_base_offset_handles_index_files() {
+        use crate::core::segment::Segment;
+
+        assert_eq!(Segment::parse_base_offset("segment_00000000000000000010.log"), Some(10));
+        assert_eq!(Segment::parse_base_offset("segment_00000000000000000010.index"), Some(10));
     }
 }
