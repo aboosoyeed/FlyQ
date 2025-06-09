@@ -16,7 +16,10 @@ use tracing::debug;
 pub struct Partition {
     pub id: u32,
     pub storage: Storage,                 // ← base directory for segments
-    pub segments: BTreeMap<u64, Arc<Mutex<Segment>>>, // base_offset → segment
+    
+    // base_offset → segment. consider parking_lot Rwlock if bottleneck comes up with thread starvation 
+    pub segments: BTreeMap<u64, Arc<Mutex<Segment>>>,
+    
     pub active_segment: u64,
     pub max_segment_bytes: u64,
     pub state: PartitionState,
@@ -109,7 +112,7 @@ impl Partition {
         // Get active segment (may be replaced if rotated)
         let mut rotate = false;
         if let Some(segment) = self.segments.get(&self.active_segment) {
-            let segment = segment.lock().unwrap();
+            let segment = segment.lock().expect("mutex poisoned");
             if segment.size > 0 && segment.size + bytes.len() as u64 > self.max_segment_bytes {
                 rotate = true;
             }
@@ -125,7 +128,7 @@ impl Partition {
             .get(&self.active_segment)
             .expect("active_segment not initialized")
             .clone();
-        let mut segment = segment.lock().unwrap();
+        let mut segment = segment.lock().expect("mutex poisoned");
 
         self.state.set_high_watermark(offset); // ← for now, fully committed instantly
         self.meta_flush_pending.store(true, Ordering::Relaxed);
@@ -144,7 +147,7 @@ impl Partition {
             .iter()
             .rev()
             .find(|(_, seg)| {
-                let seg = seg.lock().unwrap();
+                let seg = seg.lock().expect("mutex poisoned");
                 seg.base_offset <= offset && seg.last_offset >= offset
             })
             .map(|(&k, _)| k)
@@ -228,7 +231,7 @@ impl Iterator for PartitionIterator<'_> {
             // Move to the next segment
             let (_, segment_arc) = self.segments.next()?;
             let (iter_res, last_offset) = {
-                let segment = segment_arc.lock().unwrap();
+                let segment = segment_arc.lock().expect("mutex poisoned");
                 (segment.stream_from_offset(self.next_offset), segment.last_offset)
             };
             match iter_res {
