@@ -21,19 +21,20 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - [x] Round-robin and key-based partitioning
 - [x] Consumer group offset tracking (in-memory + JSON persistence)
 
-### Stage 3 – Networking & Runtime Optimization (In Progress)
+### Stage 3 – Networking & Runtime Optimization (✔ Stable)
 - [x] TCP server for produce/consume
 - [x] Rust client SDK
 - [x] Simple binary wire protocol with framing, version, checksums
-- [x] Offset commit batching:
+- [x] Offset commit batching
+- [x] Segment retention policies:
+  - [x] Time-based cleanup (configurable retention duration)
+  - [x] Size-based cleanup (configurable retention bytes)
+  - [x] Background cleanup loop with memory-safe file deletion
+  - [x] Drop-based cleanup to prevent race conditions
 
 - [ ] Runtime visibility:
   - Watermark APIs (low, high, log end offset)
   - Partition health endpoints (segment count, offset lag)
-
-- [ ] Segment retention policies:
-  - Time- and size-based cleanup
-  - Background cleanup loop
 
 ### Stage 4 – Indexing Rework: MVP Fixes 
 - [ ] Replace in-memory `BTreeMap` with compact on-disk format
@@ -71,16 +72,66 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - [ ] Consumer lag and partition health dashboards
 
 ## Current Features
-- Segment rotation with sparse indexing
-- `stream_from_offset` API for direct reads
-- Message routing with round-robin and key-awareness
-- Consumer groups with offset tracking
-- `StoredRecord` log format: `[len][offset][message]`
-- Clean serialization model (`serialize_body`, `serialize_with_len`)
-- Comprehensive error handling (`EngineError`, `DeserializeError`, `ProtocolError`)
+- **Segment Management**: Rotation with sparse indexing and configurable size limits
+- **Retention Policies**: Time-based and size-based automatic cleanup with background processing
+- **Memory Safety**: Drop-based file deletion preventing race conditions with active readers
+- **Message Streaming**: `stream_from_offset` API for direct reads with forward-only guarantees
+- **Partitioning**: Round-robin and key-based message routing across multiple partitions
+- **Consumer Groups**: Offset tracking with in-memory and JSON persistence
+- **Wire Protocol**: Binary framing with version control and checksums
+- **Storage Format**: `StoredRecord` log format: `[len][offset][message]`
+- **Serialization**: Clean model with `serialize_body` and `serialize_with_len`
+- **Error Handling**: Comprehensive error types (`EngineError`, `DeserializeError`, `ProtocolError`)
+- **Configuration**: TOML-based broker configuration for retention and operational settings
+
+## Configuration
+
+FlyQ supports TOML-based configuration for retention policies and operational settings. Create a `flyq.toml` file:
+
+```toml
+# Segment size limit (bytes) before rotation
+segment_max_bytes = 1073741824  # 1 GiB
+
+# Time-based retention - keep data newer than this duration
+retention = "7d"  # 7 days (supports: 60s, 5m, 1h, 7d)
+
+# Size-based retention - total bytes per partition (optional)
+retention_bytes = 10737418240  # 10 GiB, set to null to disable
+
+# Background cleanup interval
+cleanup_interval = "60s"  # 1 minute
+```
+
+### Retention Policies
+
+FlyQ automatically manages disk space through two retention mechanisms:
+
+1. **Time-based retention**: Removes segments older than the configured `retention` duration
+2. **Size-based retention**: When enabled via `retention_bytes`, removes oldest segments when partition size exceeds the limit
+
+Both policies work together and respect the active segment (never deleted) to ensure data integrity.
 
 ## Getting Started
-Documentation will be available soon.
+
+### Running the Server
+
+```bash
+# Build the project
+cargo build --release
+
+# Run with default configuration
+./target/release/flyQ --base-dir ./data --port 8080
+
+# Run with custom configuration
+./target/release/flyQ --base-dir ./data --port 8080 --config flyq.toml
+```
+
+### Basic Usage
+
+```bash
+# The server will automatically create topics and manage retention
+# Client SDK and CLI tools are available in the flyq-client crate
+```
 
 ## Contributing
 Not currently accepting external contributions. Feature suggestions may be submitted via GitHub issues.

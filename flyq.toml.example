@@ -1,0 +1,42 @@
+# FlyQ Configuration Example
+# Copy this file to flyq.toml and customize as needed
+
+# Segment size limit (bytes) before rotation
+# Larger segments = fewer files but larger memory usage
+# Smaller segments = more files but better granular cleanup
+segment_max_bytes = 1073741824  # 1 GiB
+
+# Time-based retention - keep data newer than this duration
+# Supports: 30s, 5m, 1h, 2d, 1w, etc.
+# Data older than this will be automatically deleted
+retention = "7d"  # 7 days
+
+# Size-based retention - total bytes per partition (optional)
+# When partition size exceeds this limit, oldest segments are deleted
+# Set to null or omit to disable size-based retention
+retention_bytes = 10737418240  # 10 GiB
+
+# Background cleanup interval
+# How often the cleanup process runs to check for segments to delete
+# More frequent = more responsive cleanup, less frequent = lower overhead
+cleanup_interval = "60s"  # 1 minute
+
+# Example configurations for different use cases:
+
+# High-throughput, short retention (logs, metrics)
+# segment_max_bytes = 134217728    # 128 MiB
+# retention = "24h"                # 1 day
+# retention_bytes = 1073741824     # 1 GiB
+# cleanup_interval = "30s"         # 30 seconds
+
+# Long-term storage, larger segments (analytics, archives)
+# segment_max_bytes = 2147483648   # 2 GiB  
+# retention = "90d"                # 90 days
+# retention_bytes = null           # No size limit
+# cleanup_interval = "300s"        # 5 minutes
+
+# Development/testing (small, frequent cleanup)
+# segment_max_bytes = 1048576      # 1 MiB
+# retention = "1h"                 # 1 hour
+# retention_bytes = 10485760       # 10 MiB
+# cleanup_interval = "10s"         # 10 seconds

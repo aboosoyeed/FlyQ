@@ -132,7 +132,7 @@ async fn test_segment_deletion_marks_and_removes_files() {
         retention: Duration::from_millis(50),
         retention_bytes: None,
         cleanup_interval: Duration::from_secs(1),
-        segment_max_bytes: 256,
+        segment_max_bytes: 100, // Very small to force multiple segments
     };
     let _ = BROKER_CONFIG.set(cfg); // Ignore if already set
     
@@ -141,19 +141,25 @@ async fn test_segment_deletion_marks_and_removes_files() {
     
     engine.create_topic(topic_name, Some(1));
     
-    // Produce messages to create segments
-    for i in 0..10 {
+    // Produce messages to create multiple segments
+    for i in 0..20 {
+        let large_msg = "x".repeat(50); // Larger messages to trigger rotation
         let msg = Message {
             key: Some(format!("key{}", i).as_bytes().to_vec()),
-            value: format!("payload{}", i).as_bytes().to_vec(),
+            value: format!("{}_{}", large_msg, i).as_bytes().to_vec(),
             timestamp: 0,
             headers: None,
         };
         engine.produce(topic_name, msg).await.unwrap();
+        
+        // Add delay every few messages to spread out timestamps
+        if i % 2 == 0 {
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
     }
     
-    // Wait for retention period
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    // Wait for retention period to ensure segments are old enough
+    tokio::time::sleep(Duration::from_millis(150)).await;
     
     // Force one more segment to make others eligible for cleanup
     let msg = Message {
