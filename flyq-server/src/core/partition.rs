@@ -1,3 +1,5 @@
+use crate::broker_config;
+use crate::core::error::EngineError;
 use crate::core::partition_state::PartitionState;
 use crate::core::partiton_meta::PartitionMeta;
 use crate::core::segment::{Segment, SegmentIterator};
@@ -7,19 +9,21 @@ use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 use std::collections::btree_map::Range;
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use tokio::io;
 use tracing::debug;
 
 pub struct Partition {
     pub id: u32,
-    pub storage: Storage,                 // ← base directory for segments
-    
-    // base_offset → segment. consider parking_lot Rwlock if bottleneck comes up with thread starvation 
+    pub storage: Storage, // ← base directory for segments
+
+    // base_offset → segment. consider parking_lot Rwlock if bottleneck comes up with thread starvation
+    // we can also consider making it sealed (Arc only) + active (arc+mutex) for performance in the future
     pub segments: BTreeMap<u64, Arc<Mutex<Segment>>>,
-    
+
     pub active_segment: u64,
     pub max_segment_bytes: u64,
     pub state: PartitionState,
@@ -63,8 +67,7 @@ impl Partition {
                 if let Some((base_offset, next_offset, segment)) =
                     Segment::recover_from_disk(path, &filename)
                 {
-                    self
-                        .segments
+                    self.segments
                         .insert(base_offset, Arc::new(Mutex::new(segment)));
                     let current_log_end = self.state.log_end_offset();
                     if next_offset > current_log_end {
@@ -151,7 +154,7 @@ impl Partition {
                 seg.base_offset <= offset && seg.last_offset >= offset
             })
             .map(|(&k, _)| k)
-            .ok_or( DeserializeError::OffsetNotFound(offset) )?;
+            .ok_or(DeserializeError::OffsetNotFound(offset))?;
         let segments = self.segments.range(start_key..);
 
         Ok(PartitionIterator {
@@ -200,6 +203,101 @@ impl Partition {
         }
         Ok(())
     }
+
+    pub fn total_bytes(&self) -> u64 {
+        self.segments
+            .values()
+            .map(|seg_arc| {
+                let seg = seg_arc.lock().expect("poisoned mutex"); // hold for microseconds
+                seg.size
+            })
+            .sum()
+    }
+
+    pub fn maybe_cleanup(&mut self) -> Result<(), EngineError> {
+        let now = SystemTime::now();
+        let mut size = self.total_bytes();
+        let cfg = broker_config();
+        let initial_segment_count = self.segments.len();
+        let mut cleaned_segments = 0;
+        let mut freed_bytes = 0u64;
+        
+        // Don't delete the active segment
+        if self.segments.len() <= 1 {
+            tracing::debug!("Skipping cleanup: only {} segment(s) present", self.segments.len());
+            return Ok(());
+        }
+        
+        // Collect keys to delete; can't mutate the map while iterating it.
+        let mut victims = Vec::new();
+        for (base, seg_arc) in &self.segments {
+            // Skip active segment
+            if *base == self.active_segment {
+                continue;
+            }
+            
+            let seg = seg_arc.lock().expect("Poisoned mutex");
+            let since_last_write = now
+                .duration_since(seg.last_write())
+                .map_err(|e| EngineError::Other(e.to_string()))?;
+            
+            let mut should_delete = false;
+            let mut reason = String::new();
+            
+            // Time-based retention check
+            if since_last_write >= cfg.retention {
+                should_delete = true;
+                reason = format!("time-based (age: {:?})", since_last_write);
+            }
+
+            // Size-based retention check
+            if let Some(max_bytes) = cfg.retention_bytes {
+                if size > max_bytes {
+                    should_delete = true;
+                    if !reason.is_empty() { reason.push_str(", "); }
+                    reason.push_str(&format!("size-based (total: {} > limit: {})", size, max_bytes));
+                } else if !should_delete {
+                    break; // Size constraint satisfied and no time constraint
+                }
+            }
+            
+            if should_delete {
+                freed_bytes += seg.size;
+                size -= seg.size;
+                victims.push((*base, reason));
+            }
+        }
+
+        for (key, reason) in victims {
+            if let Some(seg_arc) = self.segments.remove(&key) {
+                {
+                    let seg = seg_arc.lock().expect("poisoned");
+                    // Mark for deletion - actual file deletion happens in Drop
+                    seg.mark_deleted.store(true, Ordering::Release);
+                    self.state.set_low_watermark(seg.last_offset + 1);
+                    
+                    tracing::info!(
+                        "Marking segment for cleanup {} (base_offset: {}, size: {} bytes, reason: {})",
+                        seg.segment_path.display(), key, seg.size, reason
+                    );
+                    
+                    cleaned_segments += 1;
+                } // seg_guard dropped here
+                // Arc will drop when all references are gone, triggering file deletion
+            }
+        }
+
+        if cleaned_segments > 0 {
+            tracing::info!(
+                "Cleanup completed: removed {} of {} segments, freed {} bytes",
+                cleaned_segments, initial_segment_count, freed_bytes
+            );
+        } else {
+            tracing::debug!("No segments eligible for cleanup");
+        }
+
+        Ok(())
+    }
 }
 
 pub struct PartitionIterator<'a> {
@@ -232,7 +330,10 @@ impl Iterator for PartitionIterator<'_> {
             let (_, segment_arc) = self.segments.next()?;
             let (iter_res, last_offset) = {
                 let segment = segment_arc.lock().expect("mutex poisoned");
-                (segment.stream_from_offset(self.next_offset), segment.last_offset)
+                (
+                    segment.stream_from_offset(self.next_offset),
+                    segment.last_offset,
+                )
             };
             match iter_res {
                 Ok(iter) => {

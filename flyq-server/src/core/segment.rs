@@ -5,12 +5,16 @@ use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
 use crate::core::stored_record::StoredRecord;
 
 pub struct Segment {
     pub(crate) base_offset: u64,
+    pub(crate) segment_path: PathBuf,
+    pub(crate) index_path: PathBuf,
     pub(crate) file: File,
     pub(crate) index_file: File,
     pub(crate) size: u64,
@@ -18,18 +22,23 @@ pub struct Segment {
     pub last_offset: u64,                 // inclusive, or offset of last message
     index_interval: u32,
     index_counter: u32,
+    pub last_write_ns: AtomicU64,
+    pub mark_deleted: AtomicBool
+
 }
 
 impl Segment {
     pub fn new(base_offset: u64, storage: &Storage) -> Self {
         let file_name = Self::segment_filename(base_offset);
-        let (path, file) = storage.open_file(&file_name);
+        let (segment_path, file) = storage.open_file(&file_name);
         let index_file_name = Segment::index_filename(base_offset);
-        let index_path = path.parent().unwrap().join(index_file_name);
+        let index_path = segment_path.parent().unwrap().join(index_file_name);
         let (_, index_file) = Storage::open_file_from_path(&index_path);
 
         Self {
             base_offset,
+            segment_path,
+            index_path: index_path.clone(),
             file,
             size: 0,
             index: BTreeMap::new(),
@@ -37,6 +46,8 @@ impl Segment {
             last_offset: 0,
             index_interval: DEFAULT_INDEX_INTERVAL,
             index_counter: DEFAULT_INDEX_INTERVAL,
+            last_write_ns: AtomicU64::new(now_ns()),
+            mark_deleted: AtomicBool::new(false),
         }
     }
 
@@ -60,7 +71,42 @@ impl Segment {
             .and_then(|s| s.parse::<u64>().ok())
     }
 
+    pub fn last_write(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_nanos(self.last_write_ns.load(Ordering::Acquire))
+    }
+
+    pub fn mark_deleted(&self )-> std::io::Result<()>{
+        self.mark_deleted.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    fn delete_files(&self) -> std::io::Result<()> {
+        use std::fs;
+        
+        // Only delete if marked for deletion
+        if !self.mark_deleted.load(Ordering::Acquire) {
+            return Ok(());
+        }
+
+        // Delete segment file
+        if self.segment_path.exists() {
+            fs::remove_file(&self.segment_path)?;
+            tracing::info!("Deleted segment file: {:?}", self.segment_path);
+        }
+
+        // Delete index file  
+        if self.index_path.exists() {
+            fs::remove_file(&self.index_path)?;
+            tracing::info!("Deleted index file: {:?}", self.index_path);
+        }
+
+        Ok(())
+    }
+
     pub fn append(&mut self, offset: u64, bytes: &[u8]) -> std::io::Result<u64> {
+        // Update last write timestamp
+        self.last_write_ns.store(now_ns(), Ordering::Release);
+        
         // Seek to end first (optional, but clean)
         self.file.seek(SeekFrom::End(0))?;
 
@@ -150,6 +196,8 @@ impl Segment {
 
             let mut segment = Segment {
                 base_offset,
+                segment_path: path.clone(),
+                index_path: Self::index_path_from_base(base_offset, dir),
                 file,
                 size,
                 index,
@@ -157,6 +205,8 @@ impl Segment {
                 index_file,
                 index_interval: DEFAULT_INDEX_INTERVAL,
                 index_counter: DEFAULT_INDEX_INTERVAL,
+                last_write_ns: AtomicU64::new(now_ns()),
+                mark_deleted: AtomicBool::new(false),
             };
 
             // Try recovering from beyond the last known offset
@@ -272,6 +322,31 @@ impl fmt::Debug for Segment {
             self.size,
             self.index.len()
         )
+    }
+}
+
+#[inline(always)]
+fn now_ns() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64
+}
+
+impl Drop for Segment {
+    fn drop(&mut self) {
+        // Only delete files if marked for deletion
+        if self.mark_deleted.load(Ordering::Acquire) {
+            if let Err(e) = self.delete_files() {
+                tracing::warn!(
+                    error = ?e,
+                    segment = ?self.segment_path,
+                    "Failed to delete segment files during drop"
+                );
+            } else {
+                tracing::debug!("Segment files deleted on drop: {:?}", self.segment_path);
+            }
+        }
     }
 }
 
