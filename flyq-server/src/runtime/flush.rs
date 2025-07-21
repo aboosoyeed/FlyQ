@@ -66,10 +66,43 @@ pub async fn run_periodic_metadata_flush(
             }
             _ = shutdown_rx.changed() => {
                 flush_meta_data(&engine).await; 
+                break;
             }
         }
-        
-        
+    }
+}
 
+pub async fn run_periodic_cleanup(
+    engine: SharedLogEngine,
+    mut shutdown_rx: Receiver<()>,
+    interval: Duration,
+) {
+    let mut ticker = tokio::time::interval(interval);
+    
+    async fn cleanup_partitions(engine: &SharedLogEngine) {
+        let mut engine_guard = engine.lock().await;
+        for topic in engine_guard.topics.values_mut() {
+            for partition in topic.partitions.values_mut() {
+                let mut partition = partition.lock().await;
+                if let Err(e) = partition.maybe_cleanup() {
+                    tracing::warn!(error = ?e, "Failed to cleanup partition");
+                } else {
+                    tracing::debug!("Partition cleanup completed");
+                }
+            }
+        }
+    }
+    
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                cleanup_partitions(&engine).await;
+            }
+            _ = shutdown_rx.changed() => {
+                tracing::info!("Shutdown signal received. Running final cleanup...");
+                cleanup_partitions(&engine).await;
+                break;
+            }
+        }
     }
 }

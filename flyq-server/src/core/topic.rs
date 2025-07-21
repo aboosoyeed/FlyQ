@@ -4,7 +4,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use xxhash_rust::xxh3::xxh3_64;
 use flyq_protocol::message::Message;
-use crate::core::constants::{DEFAULT_MAX_SEGMENT_BYTES};
 use crate::core::partition::Partition;
 use crate::core::storage::Storage;
 pub type SharedPartition = Arc<Mutex<Partition>>;
@@ -17,14 +16,14 @@ pub struct Topic {
 }
 
 impl Topic {
-    pub fn new(name: String, log_engine_storage: &Storage, partition_count: u32) -> Topic {
+    pub fn new(name: String, log_engine_storage: &Storage, partition_count: u32, max_segment_bytes:u64) -> Topic {
         let base_path = &log_engine_storage.base_dir;
         let topic_path = base_path.join(Self::get_dir_name(&name));
         let storage = Storage::new(&topic_path);
         let mut partitions: HashMap<u32,SharedPartition> =HashMap::new();
         for partition_id in 0..partition_count {
             let partition_path =  topic_path.join(format!("partition_{}",partition_id));
-            let p =Partition::open( partition_path, partition_id, DEFAULT_MAX_SEGMENT_BYTES).expect("could not create partition");
+            let p =Partition::open( partition_path, partition_id, max_segment_bytes).expect("could not create partition");
             let shared_partition = Arc::new(Mutex::new(p));
             partitions.insert(partition_id, shared_partition);
         }
