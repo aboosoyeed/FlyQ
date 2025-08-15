@@ -21,7 +21,7 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - [x] Round-robin and key-based partitioning
 - [x] Consumer group offset tracking (in-memory + JSON persistence)
 
-### Stage 3 – Networking & Runtime Optimization (✔ Stable)
+### Stage 3 – Networking & Runtime Optimization (✔ Complete)
 - [x] TCP server for produce/consume
 - [x] Rust client SDK
 - [x] Simple binary wire protocol with framing, version, checksums
@@ -31,10 +31,11 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
   - [x] Size-based cleanup (configurable retention bytes)
   - [x] Background cleanup loop with memory-safe file deletion
   - [x] Drop-based cleanup to prevent race conditions
-
-- [ ] Runtime visibility:
-  - Watermark APIs (low, high, log end offset)
-  - Partition health endpoints (segment count, offset lag)
+- [x] Runtime visibility:
+  - [x] Watermark APIs (low, high, log end offset)
+  - [x] Consumer lag tracking across topics and partitions
+  - [x] Partition health endpoints (segment count, size, watermarks)
+  - [x] Monitoring tools and example implementations
 
 ### Stage 4 – Indexing Rework: MVP Fixes 
 - [ ] Replace in-memory `BTreeMap` with compact on-disk format
@@ -83,6 +84,8 @@ A high-performance, distributed messaging system inspired by Apache Kafka, writt
 - **Serialization**: Clean model with `serialize_body` and `serialize_with_len`
 - **Error Handling**: Comprehensive error types (`EngineError`, `DeserializeError`, `ProtocolError`)
 - **Configuration**: TOML-based broker configuration for retention and operational settings
+- **Runtime Observability**: Watermark tracking, consumer lag monitoring, and partition health metrics
+- **Monitoring Tools**: Real-time monitoring example with lag alerts and health dashboards
 
 ## Configuration
 
