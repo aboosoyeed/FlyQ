@@ -177,4 +177,81 @@ impl LogEngine {
 
         Ok(())
     }
+    
+    pub async fn get_consumer_lag(
+        &self,
+        consumer_group: &str,
+        topics: Option<Vec<String>>,
+    ) -> Result<(u64, Vec<(String, u32, u64, u64, u64)>), EngineError> {
+        let mut total_lag = 0u64;
+        let mut partition_lags = Vec::new();
+        
+        let tracker = self.offset_tracker.lock().await;
+        
+        // Determine which topics to check
+        let topics_to_check: Vec<String> = if let Some(topics) = topics {
+            topics
+        } else {
+            // If no specific topics provided, check all topics that have committed offsets
+            self.topics.keys().cloned().collect()
+        };
+        
+        for topic_name in topics_to_check {
+            if let Some(topic) = self.topics.get(&topic_name) {
+                for (&partition_id, partition) in &topic.partitions {
+                    // Get committed offset for this consumer group
+                    let committed_offset = tracker.fetch(consumer_group, partition_id).unwrap_or(0);
+                    
+                    // Get high watermark for the partition
+                    let (_, high_watermark, _) = partition.lock().await.get_watermark();
+                    
+                    // Calculate lag
+                    let lag = high_watermark.saturating_sub(committed_offset);
+                    
+                    total_lag += lag;
+                    partition_lags.push((
+                        topic_name.clone(),
+                        partition_id,
+                        committed_offset,
+                        high_watermark,
+                        lag,
+                    ));
+                }
+            }
+        }
+        
+        Ok((total_lag, partition_lags))
+    }
+    
+    pub async fn get_partition_health(
+        &self,
+        topic: &str,
+        partition_id: u32,
+    ) -> Result<(u32, u64, u64, u64, u64, Option<u64>), EngineError> {
+        let topic = self.topics.get(topic).ok_or(EngineError::NoTopic)?;
+        let partition = topic
+            .partitions
+            .get(&partition_id)
+            .ok_or(EngineError::NoPartition)?;
+        
+        let partition = partition.lock().await;
+        let (low_watermark, high_watermark, log_end_offset) = partition.get_watermark();
+        
+        // Get segment count and total size
+        let segment_count = partition.segment_count();
+        let total_size_bytes = partition.total_size_bytes();
+        
+        // For now, we don't track last cleanup timestamp
+        // This could be added to PartitionState in the future
+        let last_cleanup: Option<u64> = None;
+        
+        Ok((
+            segment_count,
+            total_size_bytes,
+            low_watermark,
+            high_watermark,
+            log_end_offset,
+            last_cleanup,
+        ))
+    }
 }

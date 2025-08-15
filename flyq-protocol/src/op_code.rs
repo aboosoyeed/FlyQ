@@ -8,6 +8,8 @@ pub enum OpCode {
     ConsumeWithGroup = 3,
     CommitOffset = 4,
     Watermark = 5,
+    GetConsumerLag = 13,
+    GetPartitionHealth = 14,
 }
 
 impl TryFrom<u8> for OpCode {
@@ -20,6 +22,8 @@ impl TryFrom<u8> for OpCode {
             3 => Ok(OpCode::ConsumeWithGroup),
             4 => Ok(OpCode::CommitOffset),
             5 => Ok(OpCode::Watermark),
+            13 => Ok(OpCode::GetConsumerLag),
+            14 => Ok(OpCode::GetPartitionHealth),
             _ => Err(ProtocolError::UnknownOpCode(value)),
         }
     }

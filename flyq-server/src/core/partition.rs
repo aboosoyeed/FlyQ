@@ -213,6 +213,14 @@ impl Partition {
             })
             .sum()
     }
+    
+    pub fn segment_count(&self) -> u32 {
+        self.segments.len() as u32
+    }
+    
+    pub fn total_size_bytes(&self) -> u64 {
+        self.total_bytes()
+    }
 
     pub fn maybe_cleanup(&mut self) -> Result<(), EngineError> {
         let now = SystemTime::now();

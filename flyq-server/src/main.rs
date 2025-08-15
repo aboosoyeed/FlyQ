@@ -33,14 +33,13 @@ async fn main() -> Result<()> {
 
     runtime::run(engine.clone(), shutdown_rx).await;
     tokio::select! {
-          _ = server::start(params, engine)=>{
+        _ = server::start(params, engine) => {
             // If the server exits unexpectedly
             let _ = shutdown_tx.send(());
         }
-        _ = tokio::signal::ctrl_c()=>{
+        _ = tokio::signal::ctrl_c() => {
             let _ = shutdown_tx.send(());
         }
-
     }
 
     Ok(())

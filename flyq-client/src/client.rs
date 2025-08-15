@@ -1,8 +1,9 @@
 use anyhow::Context;
 use bytes::{Bytes, BytesMut};
 use flyq_protocol::{
-    CommitOffsetRequest, ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame,
-    FrameType, Message, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload,
+    CommitOffsetRequest, ConsumerLagRequest, ConsumerLagResponse, ConsumeRequest, ConsumeResponse,
+    ConsumeWithGroupRequest, Frame, FrameType, Message, OpCode, PartitionHealthRequest,
+    PartitionHealthResponse, ProduceAck, ProduceRequest, ProtocolError, RequestPayload,
     ResponsePayload, WatermarkRequest, WatermarkResponse,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -240,5 +241,51 @@ impl FlyqClient {
         }
         let watermark = WatermarkResponse::deserialize(resp_payload.data)?;
         Ok(Some(watermark))
+    }
+    
+    pub async fn get_consumer_lag(
+        &mut self,
+        consumer_group: &str,
+        topics: Option<Vec<String>>,
+    ) -> Result<ConsumerLagResponse, ProtocolError> {
+        let req = ConsumerLagRequest {
+            consumer_group: consumer_group.to_string(),
+            topics,
+        };
+        let payload = RequestPayload {
+            op_code: OpCode::GetConsumerLag,
+            data: req.serialize(),
+        };
+        self.send_request(payload).await?;
+        let response = self.read_response().await?;
+        let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
+        if resp_payload.op_code != OpCode::GetConsumerLag {
+            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
+        }
+        let lag_response = ConsumerLagResponse::deserialize(resp_payload.data)?;
+        Ok(lag_response)
+    }
+    
+    pub async fn get_partition_health(
+        &mut self,
+        topic: &str,
+        partition: u32,
+    ) -> Result<PartitionHealthResponse, ProtocolError> {
+        let req = PartitionHealthRequest {
+            topic: topic.to_string(),
+            partition,
+        };
+        let payload = RequestPayload {
+            op_code: OpCode::GetPartitionHealth,
+            data: req.serialize(),
+        };
+        self.send_request(payload).await?;
+        let response = self.read_response().await?;
+        let resp_payload = ResponsePayload::deserialize(Bytes::from(response.payload))?;
+        if resp_payload.op_code != OpCode::GetPartitionHealth {
+            return Err(ProtocolError::UnknownOpCode(resp_payload.op_code as u8));
+        }
+        let health_response = PartitionHealthResponse::deserialize(resp_payload.data)?;
+        Ok(health_response)
     }
 }

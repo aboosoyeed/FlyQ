@@ -15,9 +15,13 @@ pub use payload::{RequestPayload, ResponsePayload};
 
 // Re-export common requests/responses
 pub use request::{
-    CommitOffsetRequest, ConsumeRequest, ConsumeWithGroupRequest, ProduceRequest, WatermarkRequest,
+    CommitOffsetRequest, ConsumeRequest, ConsumeWithGroupRequest, ConsumerLagRequest,
+    PartitionHealthRequest, ProduceRequest, WatermarkRequest,
 };
-pub use response::{ConsumeResponse, ProduceAck, WatermarkResponse};
+pub use response::{
+    ConsumerLagResponse, ConsumeResponse, PartitionHealthResponse, PartitionLag, ProduceAck,
+    WatermarkResponse,
+};
 
 pub use op_code::OpCode;
 

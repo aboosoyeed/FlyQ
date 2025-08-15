@@ -4,9 +4,10 @@ use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
 use flyq_protocol::message::Message;
 use flyq_protocol::{
-    CommitOffsetRequest, ConsumeRequest, ConsumeResponse, ConsumeWithGroupRequest, Frame,
-    FrameType, OpCode, ProduceAck, ProduceRequest, ProtocolError, RequestPayload, ResponsePayload,
-    WatermarkRequest, WatermarkResponse,
+    CommitOffsetRequest, ConsumerLagRequest, ConsumerLagResponse, ConsumeRequest, ConsumeResponse,
+    ConsumeWithGroupRequest, Frame, FrameType, OpCode, PartitionHealthRequest,
+    PartitionHealthResponse, PartitionLag, ProduceAck, ProduceRequest, ProtocolError,
+    RequestPayload, ResponsePayload, WatermarkRequest, WatermarkResponse,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -77,6 +78,8 @@ async fn dispatch_request(
         OpCode::ConsumeWithGroup => handle_consume_with_group(request.data, engine).await,
         OpCode::CommitOffset => handle_commit_offset(request.data, engine).await,
         OpCode::Watermark => handle_watermark(request.data, engine).await,
+        OpCode::GetConsumerLag => handle_consumer_lag(request.data, engine).await,
+        OpCode::GetPartitionHealth => handle_partition_health(request.data, engine).await,
     }
 }
 
@@ -218,6 +221,71 @@ async fn handle_watermark(
     };
     Ok(ResponsePayload {
         op_code: OpCode::Watermark,
+        data: resp.serialize(),
+    })
+}
+
+async fn handle_consumer_lag(
+    data: Bytes,
+    engine: &SharedLogEngine,
+) -> Result<ResponsePayload, ProtocolError> {
+    let req = ConsumerLagRequest::deserialize(data)?;
+    let (total_lag, partition_lags) = engine
+        .lock()
+        .await
+        .get_consumer_lag(&req.consumer_group, req.topics)
+        .await
+        .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
+    
+    let partitions = partition_lags
+        .into_iter()
+        .map(|(topic, partition, committed_offset, high_watermark, lag)| PartitionLag {
+            topic,
+            partition,
+            committed_offset,
+            high_watermark,
+            lag,
+        })
+        .collect();
+    
+    let resp = ConsumerLagResponse {
+        consumer_group: req.consumer_group,
+        total_lag,
+        partitions,
+    };
+    
+    Ok(ResponsePayload {
+        op_code: OpCode::GetConsumerLag,
+        data: resp.serialize(),
+    })
+}
+
+async fn handle_partition_health(
+    data: Bytes,
+    engine: &SharedLogEngine,
+) -> Result<ResponsePayload, ProtocolError> {
+    let req = PartitionHealthRequest::deserialize(data)?;
+    let (segment_count, total_size_bytes, low_watermark, high_watermark, log_end_offset, last_cleanup) =
+        engine
+            .lock()
+            .await
+            .get_partition_health(&req.topic, req.partition)
+            .await
+            .map_err(|e| ProtocolError::EngineErrorMapped(e.to_string()))?;
+    
+    let resp = PartitionHealthResponse {
+        topic: req.topic,
+        partition: req.partition,
+        segment_count,
+        total_size_bytes,
+        low_watermark,
+        high_watermark,
+        log_end_offset,
+        last_cleanup,
+    };
+    
+    Ok(ResponsePayload {
+        op_code: OpCode::GetPartitionHealth,
         data: resp.serialize(),
     })
 }

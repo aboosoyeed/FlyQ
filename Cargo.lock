@@ -270,6 +270,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flyq-test"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "flyq-client",
+ "flyq-protocol",
+ "tokio",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

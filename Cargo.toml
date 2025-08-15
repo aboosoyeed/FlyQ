@@ -5,3 +5,26 @@ members = [
     "flyq-protocol",
 ]
 resolver = "2"
+
+[package]
+name = "flyq-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flyq-client = { path = "flyq-client" }
+flyq-protocol = { path = "flyq-protocol" }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+
+[[bin]]
+name = "test_watermarks"
+path = "test_watermarks.rs"
+
+[[bin]]
+name = "simple_test"
+path = "simple_test.rs"
+
+[[bin]]
+name = "comprehensive_test"
+path = "comprehensive_test.rs"
