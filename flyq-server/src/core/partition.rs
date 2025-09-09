@@ -33,7 +33,7 @@ pub struct Partition {
 
 impl Partition {
     fn new_segment(&mut self, base_offset: u64) -> std::io::Result<()> {
-        let segment = Segment::new(base_offset, &self.storage);
+        let segment = Segment::new(base_offset, &self.storage)?;
         self.segments
             .insert(base_offset, Arc::new(Mutex::new(segment)));
         self.active_segment = base_offset;
@@ -59,21 +59,19 @@ impl Partition {
     }
 
     fn scan_segments(&mut self) -> std::io::Result<()> {
-        let entries = self.storage.scan_base();
+        let segments = self.storage.list_segments()?;
 
-        for entry in entries {
-            let path = entry?.path();
-            if let Some(filename) = Segment::scan_path(&path) {
-                if let Some((base_offset, next_offset, segment)) =
-                    Segment::recover_from_disk(path, &filename)
-                {
-                    self.segments
-                        .insert(base_offset, Arc::new(Mutex::new(segment)));
-                    let current_log_end = self.state.log_end_offset();
-                    if next_offset > current_log_end {
-                        self.state.set_log_end_offset(next_offset);
-                        self.active_segment = base_offset;
-                    }
+        for (base_offset, _size) in segments {
+            let filename = Storage::segment_filename(base_offset);
+            if let Some((base_offset, next_offset, segment)) =
+                Segment::recover_from_disk(&self.storage, &filename)?
+            {
+                self.segments
+                    .insert(base_offset, Arc::new(Mutex::new(segment)));
+                let current_log_end = self.state.log_end_offset();
+                if next_offset > current_log_end {
+                    self.state.set_log_end_offset(next_offset);
+                    self.active_segment = base_offset;
                 }
             }
         }
@@ -82,7 +80,7 @@ impl Partition {
     }
 
     pub fn open(dir: PathBuf, id: u32, max_segment_bytes: u64) -> std::io::Result<Self> {
-        let storage = Storage::new(dir);
+        let storage = Storage::new(dir)?;
 
         let mut partition = Partition {
             id,
