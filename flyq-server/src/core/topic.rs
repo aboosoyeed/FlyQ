@@ -10,6 +10,7 @@ pub type SharedPartition = Arc<Mutex<Partition>>;
 pub struct Topic {
     pub(crate) name: String,
     pub partitions: HashMap<u32,Arc<Mutex<Partition>>>,
+    #[allow(dead_code)]
     storage: Storage,
     partition_count: u32,
     next_partition:u32, // used for partition tracking in round robin allocation
@@ -19,7 +20,7 @@ impl Topic {
     pub fn new(name: String, log_engine_storage: &Storage, partition_count: u32, max_segment_bytes:u64) -> Topic {
         let base_path = &log_engine_storage.base_dir;
         let topic_path = base_path.join(Self::get_dir_name(&name));
-        let storage = Storage::new(&topic_path);
+        let storage = Storage::new(&topic_path).expect("Failed to create storage");
         let mut partitions: HashMap<u32,SharedPartition> =HashMap::new();
         for partition_id in 0..partition_count {
             let partition_path =  topic_path.join(format!("partition_{}",partition_id));
@@ -50,9 +51,8 @@ impl Topic {
         let mut partitions: HashMap<u32, SharedPartition> = HashMap::new();
 
         if let Some(name) = topic_name {
-            let storage = Storage::new(path);
-            let entries = storage.scan_base();
-            for entry in entries{
+            let storage = Storage::new(path).expect("Failed to create storage");
+            for entry in std::fs::read_dir(storage.base_path()).expect("Failed to read directory") {
                 let path = entry.expect("could not open entry").path();
                 if let Some(partition) = Partition::scan_existing(path, max_segment_bytes){
                     let part_id = partition.id;

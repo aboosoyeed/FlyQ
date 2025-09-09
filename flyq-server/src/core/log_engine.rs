@@ -8,6 +8,7 @@ use crate::core::storage::Storage;
 use crate::core::topic::Topic;
 use flyq_protocol::errors::DeserializeError;
 use flyq_protocol::message::Message;
+use std::fs;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -24,7 +25,7 @@ pub struct LogEngine {
 
 impl LogEngine {
     pub async fn load<P: AsRef<Path>>(base_dir: P) -> LogEngine {
-        let storage = Storage::new(&base_dir);
+        let storage = Storage::new(&base_dir).expect("Failed to create storage");
         let offset_file = base_dir.as_ref().join("consumer_offsets.json");
 
         let mut engine = LogEngine {
@@ -43,9 +44,8 @@ impl LogEngine {
     }
 
     fn scan_topics(&mut self) -> std::io::Result<()> {
-        let entries = self.storage.scan_base();
         let cfg = broker_config();
-        for entry in entries {
+        for entry in fs::read_dir(&self.storage.base_dir)? {
             let path = entry?.path();
             if path.is_dir() {
                 if let Some(topic) = Topic::scan_existing(path, cfg.segment_max_bytes) {

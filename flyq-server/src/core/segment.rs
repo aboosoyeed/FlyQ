@@ -2,7 +2,7 @@ use crate::core::constants::DEFAULT_INDEX_INTERVAL;
 use crate::core::storage::Storage;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -28,17 +28,13 @@ pub struct Segment {
 }
 
 impl Segment {
-    pub fn new(base_offset: u64, storage: &Storage) -> Self {
-        let file_name = Self::segment_filename(base_offset);
-        let (segment_path, file) = storage.open_file(&file_name);
-        let index_file_name = Segment::index_filename(base_offset);
-        let index_path = segment_path.parent().unwrap().join(index_file_name);
-        let (_, index_file) = Storage::open_file_from_path(&index_path);
+    pub fn new(base_offset: u64, storage: &Storage) -> std::io::Result<Self> {
+        let (file, index_file, segment_path, index_path) = storage.create_segment(base_offset)?;
 
-        Self {
+        Ok(Self {
             base_offset,
             segment_path,
-            index_path: index_path.clone(),
+            index_path,
             file,
             size: 0,
             index: BTreeMap::new(),
@@ -48,27 +44,24 @@ impl Segment {
             index_counter: DEFAULT_INDEX_INTERVAL,
             last_write_ns: AtomicU64::new(now_ns()),
             mark_deleted: AtomicBool::new(false),
-        }
+        })
     }
 
     pub fn segment_filename(base_offset: u64) -> String {
-        format!("segment_{:020}.log", base_offset)
+        Storage::segment_filename(base_offset)
     }
 
     pub fn index_filename(base_offset: u64) -> String {
-        format!("segment_{:020}.index", base_offset)
+        Storage::index_filename(base_offset)
     }
 
-    fn index_path_from_base(base_offset: u64, dir: &Path) -> PathBuf {
-        dir.join(Self::index_filename(base_offset))
-    }
 
     pub fn parse_base_offset(filename: &str) -> Option<u64> {
-        filename
-            .strip_prefix("segment_")?
-            .strip_suffix(".log")
-            .or_else(|| filename.strip_suffix(".index"))
-            .and_then(|s| s.parse::<u64>().ok())
+        Storage::parse_segment_filename(filename)
+            .or_else(|| filename
+                .strip_prefix("segment_")?
+                .strip_suffix(".index")
+                .and_then(|s| s.parse::<u64>().ok()))
     }
 
     pub fn last_write(&self) -> SystemTime {
@@ -81,8 +74,6 @@ impl Segment {
     }
 
     fn delete_files(&self) -> std::io::Result<()> {
-        use std::fs;
-        
         // Only delete if marked for deletion
         if !self.mark_deleted.load(Ordering::Acquire) {
             return Ok(());
@@ -185,19 +176,15 @@ impl Segment {
             .filter(|filename| filename.starts_with("segment_") && filename.ends_with(".log"))
     }
 
-    pub fn recover_from_disk(path: PathBuf, filename: &str) -> Option<(u64, u64, Segment)> {
-        if let Some(base_offset) = Self::parse_base_offset(filename) {
-            let (_, file) = Storage::open_file_from_path(&path);
-
-            let size = file.metadata().ok()?.len();
-
-            let dir = path.parent().unwrap();
-            let (index, index_file, mut last_offset) = Self::load_index_from_file(dir, base_offset);
-
+    pub fn recover_from_disk(storage: &Storage, filename: &str) -> std::io::Result<Option<(u64, u64, Segment)>> {
+        if let Some((base_offset, size, file, index_file, index, mut last_offset)) = storage.recover_segment(filename)? {
+            let segment_path = storage.base_path().join(Storage::segment_filename(base_offset));
+            let index_path = storage.base_path().join(Storage::index_filename(base_offset));
+            
             let mut segment = Segment {
                 base_offset,
-                segment_path: path.clone(),
-                index_path: Self::index_path_from_base(base_offset, dir),
+                segment_path,
+                index_path,
                 file,
                 size,
                 index,
@@ -230,39 +217,12 @@ impl Segment {
                 }
             }
 
-            Some((base_offset, last_offset + 1, segment))
+            Ok(Some((base_offset, last_offset + 1, segment)))
         } else {
-            None
+            Ok(None)
         }
     }
 
-    fn load_index_from_file(dir: &Path, base_offset: u64) -> (BTreeMap<u64, u64>, File, u64) {
-        let index_path = Self::index_path_from_base(base_offset, dir);
-        let (index_path_exists, index_file) = Storage::open_file_from_path(&index_path);
-        let mut index = BTreeMap::new();
-        let mut last_offset = 0;
-
-        if index_path_exists {
-            let mut reader = BufReader::new(&index_file);
-            let mut buf = [0u8; 16];
-            while reader.read_exact(&mut buf).is_ok() {
-                let offset = u64::from_be_bytes(
-                    buf[0..8]
-                        .try_into()
-                        .expect("index offset slice was not 8 bytes"),
-                );
-                let pos = u64::from_be_bytes(
-                    buf[8..16]
-                        .try_into()
-                        .expect("index position slice must be 8 bytes"),
-                );
-                index.insert(offset, pos);
-                last_offset = offset;
-            }
-        }
-
-        (index, index_file, last_offset)
-    }
 }
 
 pub struct SegmentIterator {
@@ -354,7 +314,6 @@ impl Drop for Segment {
 mod tests {
     use crate::core::storage::Storage;
     use std::io::Write;
-    use std::path::PathBuf;
     use flyq_protocol::message::Message;
     use crate::core::stored_record::StoredRecord;
 
@@ -373,10 +332,9 @@ mod tests {
         use crate::core::segment::Segment;
 
         let dir = tempfile::tempdir().unwrap();
-        let log_path = dir.path().join("segment_00000000000000000000.log");
-        let storage = Storage::new(PathBuf::from(dir.path()));
+        let storage = Storage::new(dir.path()).unwrap();
         // Append a few messages
-        let mut segment = Segment::new(0, &storage);
+        let mut segment = Segment::new(0, &storage).unwrap();
         for i in 0..3 {
             let msg = Message {
                 key: Some(format!("key-{}", i).into_bytes()),
@@ -390,12 +348,13 @@ mod tests {
         }
 
         // Simulate crash — delete the index file
-        let index_path = log_path.with_extension("index");
+        let index_path = dir.path().join("segment_00000000000000000000.index");
         std::fs::remove_file(&index_path).unwrap();
 
         // Recover segment
         let (_, _, recovered_segment) =
-            Segment::recover_from_disk(log_path.clone(), "segment_00000000000000000000.log")
+            Segment::recover_from_disk(&storage, "segment_00000000000000000000.log")
+                .unwrap()
                 .unwrap();
 
         // Can we stream from offset 1 even without an index?
@@ -423,11 +382,10 @@ mod tests {
         use crate::core::storage::Storage;
 
         let dir = tempfile::tempdir().unwrap();
-        let log_path = dir.path().join("segment_00000000000000000000.log");
-        let storage = Storage::new(dir.path());
+        let storage = Storage::new(dir.path()).unwrap();
 
         // Create a segment with sparse index (index every 3 messages)
-        let mut segment = Segment::new(0, &storage);
+        let mut segment = Segment::new(0, &storage).unwrap();
         segment.index_interval = 3;
         segment.index_counter = 3;
 
@@ -448,7 +406,7 @@ mod tests {
 
         // Recover from disk
         let (_, _, recovered_segment) =
-            Segment::recover_from_disk(log_path, "segment_00000000000000000000.log").unwrap();
+            Segment::recover_from_disk(&storage, "segment_00000000000000000000.log").unwrap().unwrap();
 
         // Try to stream from offset 0 (even if not all are indexed)
         let stream = recovered_segment.stream_from_offset(0).expect("stream ok");

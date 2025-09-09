@@ -136,6 +136,42 @@ cargo build --release
 # Client SDK and CLI tools are available in the flyq-client crate
 ```
 
+## Testing
+
+### Running the Test Suite
+
+```bash
+# Run all tests in the workspace
+cargo test --workspace
+
+# Run all tests without warnings
+cargo test --workspace 2>/dev/null
+
+# Run only FlyQ server tests
+cargo test -p flyQ
+
+# Run specific test suites
+cargo test -p flyQ --test retention     # Retention policy tests
+cargo test -p flyQ --test engine        # Core engine tests
+cargo test -p flyQ --test offset_tracker # Consumer offset tests
+cargo test -p flyQ --test watermark_apis # Watermark and lag tracking tests
+
+# Run tests with output for debugging
+cargo test -p flyQ -- --nocapture
+
+# Run a specific test by name
+cargo test -p flyQ test_segment_sparse_index_read_all
+```
+
+### Test Coverage
+
+The test suite covers:
+- **Core Engine**: Topic creation, partition management, message routing
+- **Storage Layer**: Segment rotation, sparse indexing, recovery from disk
+- **Retention**: Time-based and size-based cleanup with Drop-based safety
+- **Consumer Groups**: Offset tracking and persistence
+- **Observability**: Watermark APIs, consumer lag calculation, partition health
+
 ## Contributing
 Not currently accepting external contributions. Feature suggestions may be submitted via GitHub issues.
 
